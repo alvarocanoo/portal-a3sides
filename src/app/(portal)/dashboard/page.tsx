@@ -9,7 +9,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { STATUS_CONFIG, formatDate } from "@/lib/constants";
+import { STATUS_CONFIG } from "@/lib/incident-states";
+import { formatDate } from "@/lib/constants";
 
 export default async function DashboardPage() {
   const session = await requireAuth();

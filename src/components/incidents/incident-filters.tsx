@@ -3,7 +3,8 @@
 import { useRouter, usePathname } from "next/navigation";
 import { useState } from "react";
 import { Search, X } from "lucide-react";
-import { STATUS_OPTIONS, PRIORITY_OPTIONS } from "@/lib/constants";
+import { STATUS_OPTIONS } from "@/lib/incident-states";
+import { PRIORITY_OPTIONS } from "@/lib/constants";
 
 interface Props {
   currentStatus?: string;

@@ -6,13 +6,8 @@ import type { Role } from "@prisma/client";
 import { cn } from "@/lib/utils";
 import { MessageSquare, Lock, Paperclip, ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import {
-  statusLabel,
-  statusClass,
-  priorityLabel,
-  ROLE_LABELS,
-  formatDateTime,
-} from "@/lib/constants";
+import { statusLabel, statusClass } from "@/lib/incident-states";
+import { priorityLabel, ROLE_LABELS, formatDateTime } from "@/lib/constants";
 
 interface IncidentDetailProps {
   incident: {

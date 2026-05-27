@@ -1,4 +1,4 @@
-import { statusLabel } from "@/lib/constants";
+import { statusLabel } from "@/lib/incident-states";
 
 const BASE_URL = process.env.AUTH_URL || "http://localhost:3000";
 

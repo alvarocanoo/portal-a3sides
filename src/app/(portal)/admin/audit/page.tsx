@@ -1,6 +1,7 @@
 import { requireRole } from "@/lib/auth/helpers";
 import { AuditService } from "@/services/audit.service";
-import { statusLabel, formatDateTime } from "@/lib/constants";
+import { statusLabel } from "@/lib/incident-states";
+import { formatDateTime } from "@/lib/constants";
 
 const ACTION_LABELS: Record<string, string> = {
   "incident.create": "Incidencia creada",

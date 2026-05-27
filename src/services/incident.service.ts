@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import type { IncidentStatus, Priority, Role, Prisma } from "@prisma/client";
-import { VALID_TRANSITIONS } from "@/types";
+import { VALID_TRANSITIONS } from "@/lib/incident-states";
 
 interface CreateIncidentInput {
   subject: string;

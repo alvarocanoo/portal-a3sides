@@ -4,7 +4,8 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Ticket } from "lucide-react";
 import { IncidentFilters } from "@/components/incidents/incident-filters";
-import { STATUS_CONFIG, PRIORITY_CONFIG, formatDate } from "@/lib/constants";
+import { STATUS_CONFIG } from "@/lib/incident-states";
+import { PRIORITY_CONFIG, formatDate } from "@/lib/constants";
 
 export default async function IncidenciasPage({
   searchParams,
