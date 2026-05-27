@@ -25,7 +25,7 @@ const PRIORITIES = [
   { value: "LOW", label: "Baja" },
   { value: "MEDIUM", label: "Media" },
   { value: "HIGH", label: "Alta" },
-  { value: "CRITICAL", label: "Critica" },
+  { value: "CRITICAL", label: "Crítica" },
 ];
 
 export function IncidentFilters({

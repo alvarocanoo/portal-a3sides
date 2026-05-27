@@ -23,7 +23,7 @@ const PRIORITY_LABELS: Record<string, { label: string; className: string }> = {
   LOW: { label: "Baja", className: "text-gray-500" },
   MEDIUM: { label: "Media", className: "text-blue-600" },
   HIGH: { label: "Alta", className: "text-orange-600 font-medium" },
-  CRITICAL: { label: "Critica", className: "text-red-600 font-bold" },
+  CRITICAL: { label: "Crítica", className: "text-red-600 font-bold" },
 };
 
 export default async function IncidenciasPage({
@@ -143,7 +143,7 @@ export default async function IncidenciasPage({
                     <td className="px-4 py-3">
                       <span
                         className={cn(
-                          "inline-block px-2.5 py-0.5 text-xs font-medium rounded-full",
+                          "inline-block px-2 py-0.5 text-xs font-medium rounded-full",
                           status.className
                         )}
                       >

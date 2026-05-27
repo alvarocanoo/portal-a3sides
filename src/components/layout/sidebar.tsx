@@ -69,7 +69,8 @@ export function Sidebar({ role }: { role: Role }) {
       {/* ── Cabecera ── */}
       <Link
         href="/dashboard"
-        className="flex items-center h-[72px] px-5 border-b border-gray-200 shrink-0"
+        className="flex items-center h-[72px] border-b border-gray-200 shrink-0"
+        style={{ paddingLeft: 4, paddingRight: 12 }}
       >
         {/* Logo */}
         <div className="shrink-0 overflow-hidden" style={{ height: 52 }}>
