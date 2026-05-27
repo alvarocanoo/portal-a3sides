@@ -51,18 +51,15 @@ export const authConfig: NextAuthConfig = {
     error: "/login",
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user) {
         token.id = user.id!;
         token.role = user.role;
         token.companyId = user.companyId;
         token.mustChangePassword = user.mustChangePassword;
-        token.lastChecked = Date.now();
       }
 
-      const RECHECK_INTERVAL = 5 * 60 * 1000;
-      const lastChecked = (token.lastChecked as number) || 0;
-      if (Date.now() - lastChecked > RECHECK_INTERVAL) {
+      if (trigger === "update") {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id },
           select: { isActive: true, role: true, mustChangePassword: true },
@@ -72,7 +69,6 @@ export const authConfig: NextAuthConfig = {
         }
         token.role = dbUser.role;
         token.mustChangePassword = dbUser.mustChangePassword;
-        token.lastChecked = Date.now();
       }
 
       return token;
