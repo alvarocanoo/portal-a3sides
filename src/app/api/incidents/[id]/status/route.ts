@@ -40,7 +40,7 @@ export async function PATCH(
       userId: session.user.id,
       entityType: "Incident",
       entityId: id,
-      metadata: { newStatus: parsed.data.status, reason: parsed.data.reason },
+      metadata: { reference: updated.reference, newStatus: parsed.data.status, reason: parsed.data.reason },
     });
 
     NotificationService.onStatusChanged(id, parsed.data.status).catch(console.error);

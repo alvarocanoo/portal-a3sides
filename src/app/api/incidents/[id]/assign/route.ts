@@ -43,7 +43,7 @@ export async function PATCH(
       userId: session.user.id,
       entityType: "Incident",
       entityId: id,
-      metadata: { assignedToId: parsed.data.assignedToId },
+      metadata: { reference: updated.reference, assignedToId: parsed.data.assignedToId },
     });
 
     return NextResponse.json(updated);

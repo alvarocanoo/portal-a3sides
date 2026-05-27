@@ -1,7 +1,7 @@
 import { requireRole } from "@/lib/auth/helpers";
 import { AuditService } from "@/services/audit.service";
 import { statusLabel } from "@/lib/incident-states";
-import { formatDateTime } from "@/lib/constants";
+import { formatDateTime, ROLE_LABELS } from "@/lib/constants";
 
 const ACTION_LABELS: Record<string, string> = {
   "incident.create": "Incidencia creada",
@@ -10,32 +10,80 @@ const ACTION_LABELS: Record<string, string> = {
   "user.create": "Usuario creado",
   "user.update": "Usuario modificado",
   "company.create": "Empresa creada",
-  "company.import_irecursos": "Empresa importada (iRecursos)",
-  "company.import_existing": "Empresa vinculada (iRecursos)",
+  "company.import_irecursos": "Empresa importada de iRecursos",
+  "company.import_existing": "Empresa vinculada a iRecursos",
 };
 
-function formatMetadata(action: string, metadata: unknown): string {
-  if (!metadata || typeof metadata !== "object") return "—";
-  const m = metadata as Record<string, unknown>;
+type AuditItem = Awaited<ReturnType<typeof AuditService.list>>["items"][number];
 
-  if (action === "incident.status_change" && m.newStatus) {
-    const reason = m.reason ? ` — ${m.reason}` : "";
-    return `→ ${statusLabel(m.newStatus as string)}${reason}`;
-  }
-  if (action === "incident.create" && m.reference) {
-    return String(m.reference);
-  }
-  if (action === "incident.assign" && m.assignedToId) {
-    return `Asignado a ${String(m.assignedToId).slice(0, 8)}…`;
-  }
-  if ((action === "user.create" || action === "user.update") && m.email) {
-    return String(m.email);
-  }
-  if (action.startsWith("company.") && m.name) {
-    return String(m.name);
-  }
+function formatEntity(item: AuditItem): string {
+  const m = item.metadata as Record<string, unknown> | null;
+  const ref = (m?.reference as string) || item._incidentRef;
 
-  return JSON.stringify(metadata).slice(0, 60);
+  if (item.entityType === "Incident") {
+    return ref ? `Incidencia ${ref}` : "Incidencia";
+  }
+  if (item.entityType === "User") {
+    if (item._targetUser) {
+      return `${item._targetUser.firstName} ${item._targetUser.lastName}`;
+    }
+    if (m?.email) return String(m.email);
+    return "Usuario";
+  }
+  if (item.entityType === "Company") {
+    if (m?.name) return String(m.name);
+    return "Empresa";
+  }
+  return "—";
+}
+
+function formatDetails(item: AuditItem): string {
+  const m = item.metadata as Record<string, unknown> | null;
+  if (!m) return "—";
+
+  switch (item.action) {
+    case "incident.create":
+      return "Nueva incidencia abierta";
+
+    case "incident.status_change": {
+      const label = m.newStatus ? statusLabel(m.newStatus as string) : "—";
+      const reason = m.reason ? ` — ${m.reason}` : "";
+      return `Estado cambiado a: ${label}${reason}`;
+    }
+
+    case "incident.assign": {
+      const name = item._agentName;
+      return name ? `Asignada a ${name}` : "Agente asignado";
+    }
+
+    case "user.create": {
+      const role = m.role ? ROLE_LABELS[m.role as string] || m.role : "";
+      return `Nuevo usuario (${role})`;
+    }
+
+    case "user.update": {
+      const changes: string[] = [];
+      if (m.isActive === false) changes.push("desactivado");
+      if (m.isActive === true) changes.push("activado");
+      if (m.role) changes.push(`rol: ${ROLE_LABELS[m.role as string] || m.role}`);
+      if (m.firstName || m.lastName) changes.push("datos actualizados");
+      return changes.length > 0 ? changes.join(", ") : "Datos modificados";
+    }
+
+    case "company.create":
+      return "Nueva empresa registrada";
+
+    case "company.import_irecursos":
+      return m.irecursosCode
+        ? `Importada desde iRecursos (código ${m.irecursosCode})`
+        : "Importada desde iRecursos";
+
+    case "company.import_existing":
+      return "Empresa ya existente vinculada";
+
+    default:
+      return "—";
+  }
 }
 
 export default async function AuditPage({
@@ -74,6 +122,9 @@ export default async function AuditPage({
                   Acción
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Entidad
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Detalles
                 </th>
               </tr>
@@ -92,8 +143,11 @@ export default async function AuditPage({
                   <td className="px-4 py-3 text-sm text-gray-700">
                     {ACTION_LABELS[log.action] || log.action}
                   </td>
+                  <td className="px-4 py-3 text-sm text-gray-700">
+                    {formatEntity(log)}
+                  </td>
                   <td className="px-4 py-3 text-sm text-gray-500">
-                    {formatMetadata(log.action, log.metadata)}
+                    {formatDetails(log)}
                   </td>
                 </tr>
               ))}

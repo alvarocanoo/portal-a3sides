@@ -40,6 +40,61 @@ export class AuditService {
       prisma.auditLog.count(),
     ]);
 
-    return { items, total, page, totalPages: Math.ceil(total / limit) };
+    const incidentIds = items
+      .filter((i) => i.entityType === "Incident" && i.entityId)
+      .map((i) => i.entityId!);
+
+    const userIds = items
+      .filter((i) => i.entityType === "User" && i.entityId)
+      .map((i) => i.entityId!);
+
+    const agentIds = items
+      .filter((i) => {
+        const m = i.metadata as Record<string, unknown> | null;
+        return m?.assignedToId && typeof m.assignedToId === "string";
+      })
+      .map((i) => (i.metadata as Record<string, unknown>).assignedToId as string);
+
+    const [incidents, users, agents] = await Promise.all([
+      incidentIds.length > 0
+        ? prisma.incident.findMany({
+            where: { id: { in: incidentIds } },
+            select: { id: true, reference: true },
+          })
+        : [],
+      userIds.length > 0
+        ? prisma.user.findMany({
+            where: { id: { in: userIds } },
+            select: { id: true, firstName: true, lastName: true, email: true },
+          })
+        : [],
+      agentIds.length > 0
+        ? prisma.user.findMany({
+            where: { id: { in: agentIds } },
+            select: { id: true, firstName: true, lastName: true },
+          })
+        : [],
+    ]);
+
+    const incidentMap = new Map(incidents.map((i) => [i.id, i.reference]));
+    const userMap = new Map(users.map((u) => [u.id, u]));
+    const agentMap = new Map(agents.map((a) => [a.id, `${a.firstName} ${a.lastName}`]));
+
+    const enriched = items.map((item) => ({
+      ...item,
+      _incidentRef: item.entityType === "Incident" && item.entityId
+        ? incidentMap.get(item.entityId) ?? null
+        : null,
+      _targetUser: item.entityType === "User" && item.entityId
+        ? userMap.get(item.entityId) ?? null
+        : null,
+      _agentName: (() => {
+        const m = item.metadata as Record<string, unknown> | null;
+        if (m?.assignedToId) return agentMap.get(m.assignedToId as string) ?? null;
+        return null;
+      })(),
+    }));
+
+    return { items: enriched, total, page, totalPages: Math.ceil(total / limit) };
   }
 }
