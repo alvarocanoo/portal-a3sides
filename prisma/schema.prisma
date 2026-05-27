@@ -1,0 +1,203 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ───────────────────────────────────────────────
+
+enum Role {
+  CLIENT
+  AGENT
+  ADMIN
+}
+
+enum IncidentStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_CLIENT
+  WAITING_THIRD_PARTY
+  RESOLVED
+  CLOSED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+// ─── Users & Companies ──────────────────────────────────
+
+model Company {
+  id                String   @id @default(uuid()) @db.Uuid
+  name              String
+  taxId             String?
+  irecursosClientId String?  @unique
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  users     User[]
+  incidents Incident[]
+
+  @@index([irecursosClientId])
+  @@map("companies")
+}
+
+model User {
+  id                 String    @id @default(uuid()) @db.Uuid
+  email              String    @unique
+  passwordHash       String
+  role               Role      @default(CLIENT)
+  firstName          String
+  lastName           String
+  isActive           Boolean   @default(true)
+  mustChangePassword Boolean   @default(true)
+  lastLoginAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  companyId String?  @db.Uuid
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  createdIncidents  Incident[]     @relation("IncidentCreator")
+  assignedIncidents Incident[]     @relation("IncidentAssignee")
+  messages          Message[]
+  attachments       Attachment[]
+  statusChanges     StatusChange[]
+  auditLogs         AuditLog[]
+
+  @@index([email])
+  @@index([companyId])
+  @@index([role])
+  @@map("users")
+}
+
+// ─── Incidents ──────────────────────────────────────────
+
+model Incident {
+  id          String         @id @default(uuid()) @db.Uuid
+  reference   String         @unique
+  subject     String
+  description String
+  status      IncidentStatus @default(OPEN)
+  priority    Priority       @default(MEDIUM)
+  category    String?
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  firstResponseAt DateTime?
+  resolvedAt      DateTime?
+  closedAt        DateTime?
+
+  companyId    String  @db.Uuid
+  company      Company @relation(fields: [companyId], references: [id])
+  createdById  String  @db.Uuid
+  createdBy    User    @relation("IncidentCreator", fields: [createdById], references: [id])
+  assignedToId String? @db.Uuid
+  assignedTo   User?   @relation("IncidentAssignee", fields: [assignedToId], references: [id])
+
+  irecursosCaseId String?
+  irecursosOtId   String?
+  lastSyncedAt    DateTime?
+
+  messages      Message[]
+  attachments   Attachment[]
+  statusChanges StatusChange[]
+
+  @@index([companyId])
+  @@index([status])
+  @@index([priority])
+  @@index([assignedToId])
+  @@index([createdById])
+  @@index([createdAt])
+  @@index([irecursosCaseId])
+  @@map("incidents")
+}
+
+// ─── Messages ───────────────────────────────────────────
+
+model Message {
+  id         String   @id @default(uuid()) @db.Uuid
+  content    String
+  isInternal Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  incidentId String   @db.Uuid
+  incident   Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  authorId   String   @db.Uuid
+  author     User     @relation(fields: [authorId], references: [id])
+
+  attachments Attachment[]
+
+  @@index([incidentId])
+  @@index([authorId])
+  @@map("messages")
+}
+
+// ─── Attachments ────────────────────────────────────────
+
+model Attachment {
+  id         String   @id @default(uuid()) @db.Uuid
+  fileName   String
+  fileSize   Int
+  mimeType   String
+  storageKey String
+  createdAt  DateTime @default(now())
+
+  incidentId   String?   @db.Uuid
+  incident     Incident? @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  messageId    String?   @db.Uuid
+  message      Message?  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  uploadedById String    @db.Uuid
+  uploadedBy   User      @relation(fields: [uploadedById], references: [id])
+
+  @@index([incidentId])
+  @@index([messageId])
+  @@map("attachments")
+}
+
+// ─── Audit Trail ────────────────────────────────────────
+
+model StatusChange {
+  id         String         @id @default(uuid()) @db.Uuid
+  fromStatus IncidentStatus
+  toStatus   IncidentStatus
+  reason     String?
+  createdAt  DateTime       @default(now())
+
+  incidentId  String   @db.Uuid
+  incident    Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  changedById String   @db.Uuid
+  changedBy   User     @relation(fields: [changedById], references: [id])
+
+  @@index([incidentId])
+  @@index([createdAt])
+  @@map("status_changes")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  action     String
+  entityType String?
+  entityId   String?
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  userId String? @db.Uuid
+  user   User?   @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([action])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
