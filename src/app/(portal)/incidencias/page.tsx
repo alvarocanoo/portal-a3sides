@@ -2,16 +2,17 @@ import { requireAuth } from "@/lib/auth/helpers";
 import { IncidentService } from "@/services/incident.service";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { IncidentFilters } from "@/components/incidents/incident-filters";
 
 const STATUS_LABELS: Record<string, { label: string; className: string }> = {
   OPEN: { label: "Abierta", className: "bg-orange-100 text-orange-800" },
   IN_PROGRESS: { label: "En curso", className: "bg-blue-100 text-blue-800" },
   WAITING_CLIENT: {
-    label: "Esperando cliente",
+    label: "Esp. cliente",
     className: "bg-yellow-100 text-yellow-800",
   },
   WAITING_THIRD_PARTY: {
-    label: "Esperando tercero",
+    label: "Esp. tercero",
     className: "bg-purple-100 text-purple-800",
   },
   RESOLVED: { label: "Resuelta", className: "bg-green-100 text-green-800" },
@@ -21,8 +22,8 @@ const STATUS_LABELS: Record<string, { label: string; className: string }> = {
 const PRIORITY_LABELS: Record<string, { label: string; className: string }> = {
   LOW: { label: "Baja", className: "text-gray-500" },
   MEDIUM: { label: "Media", className: "text-blue-600" },
-  HIGH: { label: "Alta", className: "text-orange-600" },
-  CRITICAL: { label: "Crítica", className: "text-red-600 font-semibold" },
+  HIGH: { label: "Alta", className: "text-orange-600 font-medium" },
+  CRITICAL: { label: "Critica", className: "text-red-600 font-bold" },
 };
 
 export default async function IncidenciasPage({
@@ -46,7 +47,12 @@ export default async function IncidenciasPage({
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Incidencias</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Incidencias</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {result.total} incidencia{result.total !== 1 && "s"}
+          </p>
+        </div>
         {session.user.role === "CLIENT" && (
           <Link
             href="/incidencias/nueva"
@@ -57,38 +63,54 @@ export default async function IncidenciasPage({
         )}
       </div>
 
+      <IncidentFilters
+        currentStatus={params.status}
+        currentPriority={params.priority}
+        currentSearch={params.search}
+      />
+
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         {result.items.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
-            No hay incidencias.
+          <div className="p-12 text-center">
+            <p className="text-gray-500 mb-1">No hay incidencias</p>
+            <p className="text-sm text-gray-400">
+              {params.status || params.priority || params.search
+                ? "Prueba a cambiar los filtros"
+                : "Todavia no se ha creado ninguna incidencia"}
+            </p>
           </div>
         ) : (
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Referencia
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Asunto
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Estado
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Prioridad
                 </th>
                 {session.user.role !== "CLIENT" && (
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Empresa
-                  </th>
+                  <>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Empresa
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Asignado
+                    </th>
+                  </>
                 )}
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Fecha
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-gray-100">
               {result.items.map((incident) => {
                 const status = STATUS_LABELS[incident.status];
                 const priority = PRIORITY_LABELS[incident.priority];
@@ -105,18 +127,23 @@ export default async function IncidenciasPage({
                         {incident.reference}
                       </Link>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 max-w-xs">
                       <Link
                         href={`/incidencias/${incident.id}`}
-                        className="text-sm text-gray-900 hover:text-blue-600"
+                        className="text-sm text-gray-900 hover:text-blue-600 line-clamp-1"
                       >
                         {incident.subject}
                       </Link>
+                      {incident.category && (
+                        <span className="text-xs text-gray-400 block">
+                          {incident.category}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span
                         className={cn(
-                          "inline-block px-2 py-1 text-xs font-medium rounded-full",
+                          "inline-block px-2.5 py-0.5 text-xs font-medium rounded-full",
                           status.className
                         )}
                       >
@@ -129,12 +156,22 @@ export default async function IncidenciasPage({
                       </span>
                     </td>
                     {session.user.role !== "CLIENT" && (
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {incident.company.name}
-                      </td>
+                      <>
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          {incident.company.name}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-500">
+                          {incident.assignedTo
+                            ? `${incident.assignedTo.firstName} ${incident.assignedTo.lastName}`
+                            : "—"}
+                        </td>
+                      </>
                     )}
-                    <td className="px-4 py-3 text-sm text-gray-500">
-                      {new Date(incident.createdAt).toLocaleDateString("es-ES")}
+                    <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
+                      {new Date(incident.createdAt).toLocaleDateString(
+                        "es-ES",
+                        { day: "2-digit", month: "short", year: "numeric" }
+                      )}
                     </td>
                   </tr>
                 );
@@ -145,17 +182,17 @@ export default async function IncidenciasPage({
       </div>
 
       {result.totalPages > 1 && (
-        <div className="mt-4 flex justify-center gap-2">
+        <div className="mt-4 flex justify-center gap-1">
           {Array.from({ length: result.totalPages }, (_, i) => i + 1).map(
             (page) => (
               <Link
                 key={page}
-                href={`/incidencias?page=${page}`}
+                href={`/incidencias?page=${page}${params.status ? `&status=${params.status}` : ""}${params.priority ? `&priority=${params.priority}` : ""}${params.search ? `&search=${params.search}` : ""}`}
                 className={cn(
-                  "px-3 py-1 text-sm rounded-md",
+                  "px-3 py-1.5 text-sm rounded-md transition-colors",
                   page === result.page
                     ? "bg-blue-600 text-white"
-                    : "bg-white text-gray-600 border border-gray-300 hover:bg-gray-50"
+                    : "text-gray-600 hover:bg-gray-100"
                 )}
               >
                 {page}
