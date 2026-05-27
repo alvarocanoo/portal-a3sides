@@ -7,8 +7,9 @@ import { cn } from "@/lib/utils";
 import { MessageSquare, Lock, Paperclip, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import {
-  STATUS_CONFIG,
-  PRIORITY_CONFIG,
+  statusLabel,
+  statusClass,
+  priorityLabel,
   ROLE_LABELS,
   formatDateTime,
 } from "@/lib/constants";
@@ -73,7 +74,7 @@ export function IncidentDetail({ incident, currentUser }: IncidentDetailProps) {
   const [sending, setSending] = useState(false);
   const [statusLoading, setStatusLoading] = useState(false);
 
-  const status = STATUS_CONFIG[incident.status];
+  const status = { label: statusLabel(incident.status), className: statusClass(incident.status) };
   const isClosed = incident.status === "CLOSED";
 
   async function handleSendMessage(e: React.FormEvent) {
@@ -147,7 +148,7 @@ export function IncidentDetail({ incident, currentUser }: IncidentDetailProps) {
           <div>
             <p className="text-gray-500">Prioridad</p>
             <p className="font-medium">
-              {PRIORITY_CONFIG[incident.priority]?.label}
+              {priorityLabel(incident.priority)}
             </p>
           </div>
           <div>

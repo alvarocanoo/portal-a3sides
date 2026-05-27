@@ -1,5 +1,6 @@
 import { requireRole } from "@/lib/auth/helpers";
 import { AuditService } from "@/services/audit.service";
+import { statusLabel, formatDateTime } from "@/lib/constants";
 
 const ACTION_LABELS: Record<string, string> = {
   "incident.create": "Incidencia creada",
@@ -8,7 +9,33 @@ const ACTION_LABELS: Record<string, string> = {
   "user.create": "Usuario creado",
   "user.update": "Usuario modificado",
   "company.create": "Empresa creada",
+  "company.import_irecursos": "Empresa importada (iRecursos)",
+  "company.import_existing": "Empresa vinculada (iRecursos)",
 };
+
+function formatMetadata(action: string, metadata: unknown): string {
+  if (!metadata || typeof metadata !== "object") return "—";
+  const m = metadata as Record<string, unknown>;
+
+  if (action === "incident.status_change" && m.newStatus) {
+    const reason = m.reason ? ` — ${m.reason}` : "";
+    return `→ ${statusLabel(m.newStatus as string)}${reason}`;
+  }
+  if (action === "incident.create" && m.reference) {
+    return String(m.reference);
+  }
+  if (action === "incident.assign" && m.assignedToId) {
+    return `Asignado a ${String(m.assignedToId).slice(0, 8)}…`;
+  }
+  if ((action === "user.create" || action === "user.update") && m.email) {
+    return String(m.email);
+  }
+  if (action.startsWith("company.") && m.name) {
+    return String(m.name);
+  }
+
+  return JSON.stringify(metadata).slice(0, 60);
+}
 
 export default async function AuditPage({
   searchParams,
@@ -36,28 +63,25 @@ export default async function AuditPage({
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Fecha
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Usuario
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Accion
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Acción
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                  Entidad
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Detalles
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-gray-100">
               {result.items.map((log) => (
-                <tr key={log.id} className="hover:bg-gray-50">
+                <tr key={log.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
-                    {new Date(log.createdAt).toLocaleString("es-ES")}
+                    {formatDateTime(log.createdAt)}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-900">
                     {log.user
@@ -67,15 +91,8 @@ export default async function AuditPage({
                   <td className="px-4 py-3 text-sm text-gray-700">
                     {ACTION_LABELS[log.action] || log.action}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-500 font-mono">
-                    {log.entityType
-                      ? `${log.entityType} ${log.entityId?.slice(0, 8) || ""}...`
-                      : "—"}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-500 max-w-xs truncate">
-                    {log.metadata
-                      ? JSON.stringify(log.metadata).slice(0, 80)
-                      : "—"}
+                  <td className="px-4 py-3 text-sm text-gray-500">
+                    {formatMetadata(log.action, log.metadata)}
                   </td>
                 </tr>
               ))}

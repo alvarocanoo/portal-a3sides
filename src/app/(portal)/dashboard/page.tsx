@@ -1,6 +1,12 @@
 import { requireAuth } from "@/lib/auth/helpers";
 import { prisma } from "@/lib/db";
-import { Ticket, Clock, CheckCircle2, AlertTriangle } from "lucide-react";
+import {
+  Ticket,
+  Clock,
+  CheckCircle2,
+  AlertTriangle,
+  Pause,
+} from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { STATUS_CONFIG, formatDate } from "@/lib/constants";
@@ -11,16 +17,15 @@ export default async function DashboardPage() {
 
   const where = role === "CLIENT" ? { companyId: companyId! } : {};
 
-  const [total, open, inProgress, resolved, recentIncidents] =
+  const [total, open, inProgress, waiting, finished, recentIncidents] =
     await Promise.all([
       prisma.incident.count({ where }),
       prisma.incident.count({ where: { ...where, status: "OPEN" } }),
+      prisma.incident.count({ where: { ...where, status: "IN_PROGRESS" } }),
       prisma.incident.count({
         where: {
           ...where,
-          status: {
-            in: ["IN_PROGRESS", "WAITING_CLIENT", "WAITING_THIRD_PARTY"],
-          },
+          status: { in: ["WAITING_CLIENT", "WAITING_THIRD_PARTY"] },
         },
       }),
       prisma.incident.count({
@@ -59,12 +64,19 @@ export default async function DashboardPage() {
       label: "En curso",
       value: inProgress,
       icon: Clock,
-      color: "text-yellow-600 bg-yellow-50",
+      color: "text-blue-600 bg-blue-50",
       href: "/incidencias?status=IN_PROGRESS",
     },
     {
-      label: "Resueltas",
-      value: resolved,
+      label: "En espera",
+      value: waiting,
+      icon: Pause,
+      color: "text-yellow-600 bg-yellow-50",
+      href: "/incidencias?status=WAITING_CLIENT",
+    },
+    {
+      label: "Finalizadas",
+      value: finished,
       icon: CheckCircle2,
       color: "text-green-600 bg-green-50",
       href: "/incidencias?status=RESOLVED",
@@ -85,7 +97,7 @@ export default async function DashboardPage() {
         <p className="text-sm text-gray-500 mt-0.5">{greeting}</p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
@@ -151,7 +163,7 @@ export default async function DashboardPage() {
         ) : (
           <div className="divide-y divide-gray-100">
             {recentIncidents.map((incident) => {
-              const status = STATUS_CONFIG[incident.status];
+              const status = STATUS_CONFIG[incident.status as keyof typeof STATUS_CONFIG];
               return (
                 <Link
                   key={incident.id}
@@ -163,14 +175,16 @@ export default async function DashboardPage() {
                       <span className="text-xs font-mono text-gray-400">
                         {incident.reference}
                       </span>
-                      <span
-                        className={cn(
-                          "inline-block px-2 py-0.5 text-xs font-medium rounded-full",
-                          status.className
-                        )}
-                      >
-                        {status.label}
-                      </span>
+                      {status && (
+                        <span
+                          className={cn(
+                            "inline-block px-2 py-0.5 text-xs font-medium rounded-full",
+                            status.className
+                          )}
+                        >
+                          {status.label}
+                        </span>
+                      )}
                     </div>
                     <p className="text-sm font-medium text-gray-900 truncate mt-0.5">
                       {incident.subject}

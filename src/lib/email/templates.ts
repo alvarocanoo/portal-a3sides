@@ -1,3 +1,5 @@
+import { statusLabel } from "@/lib/constants";
+
 const BASE_URL = process.env.AUTH_URL || "http://localhost:3000";
 
 function layout(content: string): string {
@@ -90,23 +92,14 @@ export function statusChangedNotification(data: {
   newStatus: string;
   incidentId: string;
 }): { subject: string; html: string } {
-  const STATUS_LABELS: Record<string, string> = {
-    OPEN: "Abierta",
-    IN_PROGRESS: "En curso",
-    WAITING_CLIENT: "Esperando tu respuesta",
-    WAITING_THIRD_PARTY: "Escalada a tercero",
-    RESOLVED: "Resuelta",
-    CLOSED: "Cerrada",
-  };
-
   return {
-    subject: `[${data.reference}] Estado actualizado: ${STATUS_LABELS[data.newStatus] || data.newStatus}`,
+    subject: `[${data.reference}] Estado actualizado: ${statusLabel(data.newStatus)}`,
     html: layout(`
       <h2 style="margin:0 0 16px;color:#111827;font-size:18px">Estado actualizado</h2>
       <p style="color:#4b5563;margin:0 0 16px">La incidencia <strong>${data.reference}</strong> ha cambiado de estado.</p>
       <div style="background:#f9fafb;border-radius:6px;padding:12px 16px;margin:0 0 16px">
         <p style="margin:0;font-size:14px;color:#6b7280">${data.subject}</p>
-        <p style="margin:8px 0 0;font-size:16px;color:#111827;font-weight:600">${STATUS_LABELS[data.newStatus] || data.newStatus}</p>
+        <p style="margin:8px 0 0;font-size:16px;color:#111827;font-weight:600">${statusLabel(data.newStatus)}</p>
       </div>
       <a href="${BASE_URL}/incidencias/${data.incidentId}" style="display:inline-block;background:#275d6b;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500">Ver incidencia</a>
     `),
