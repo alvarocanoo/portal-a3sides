@@ -66,34 +66,41 @@ export function Sidebar({ role }: { role: Role }) {
 
   return (
     <aside className="w-64 bg-white border-r border-gray-200 flex flex-col shrink-0">
-      {/* ── Cabecera con logo ── */}
+      {/* ── Cabecera ── */}
       <Link
         href="/dashboard"
-        className="flex items-center h-16 px-4 border-b border-gray-200 shrink-0 group"
+        className="flex items-center h-[72px] px-5 border-b border-gray-200 shrink-0"
       >
-        <div className="flex items-center gap-2.5 overflow-hidden">
-          <div className="shrink-0 overflow-hidden" style={{ height: 44 }}>
-            <Image
-              src="/logoa3sides.png"
-              alt="a3sides Software Solutions"
-              width={225}
-              height={225}
-              className="max-w-none"
-              style={{
-                width: 130,
-                height: 130,
-                marginTop: -38,
-                marginBottom: -48,
-              }}
-              priority
-              unoptimized
-            />
-          </div>
-          <span className="h-4 w-px bg-gray-200 shrink-0" aria-hidden="true" />
-          <span className="text-[10.5px] font-semibold tracking-[0.08em] text-gray-400 uppercase">
-            Soporte
-          </span>
+        {/* Logo */}
+        <div className="shrink-0 overflow-hidden" style={{ height: 52 }}>
+          <Image
+            src="/logoa3sides.png"
+            alt="a3sides Software Solutions"
+            width={225}
+            height={225}
+            className="max-w-none"
+            style={{
+              width: 126,
+              height: 126,
+              marginTop: -36,
+              marginBottom: -38,
+            }}
+            priority
+            unoptimized
+          />
         </div>
+
+        {/* Separador */}
+        <span
+          className="shrink-0 w-px bg-gray-200 mx-3 self-center"
+          style={{ height: 30 }}
+          aria-hidden="true"
+        />
+
+        {/* Soporte — alineado al centro vertical del logo */}
+        <span className="text-[10.5px] font-semibold tracking-[0.1em] text-gray-400 uppercase self-center">
+          Soporte
+        </span>
       </Link>
 
       {/* ── Navegacion ── */}
