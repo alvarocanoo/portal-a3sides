@@ -48,3 +48,6 @@ prisma/migrations/**/migration_lock.toml
 # uploads
 /uploads/*
 !/uploads/.gitkeep
+
+# iRecursos mapping files (sensitive + large)
+/irecursos/

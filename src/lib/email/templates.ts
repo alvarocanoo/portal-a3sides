@@ -37,7 +37,7 @@ export function incidentCreatedClient(data: {
         <p style="margin:0;font-size:14px;color:#6b7280">Asunto</p>
         <p style="margin:4px 0 0;font-size:15px;color:#111827;font-weight:500">${data.subject}</p>
       </div>
-      <a href="${BASE_URL}/incidencias/${data.incidentId}" style="display:inline-block;background:#2563eb;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500">Ver incidencia</a>
+      <a href="${BASE_URL}/incidencias/${data.incidentId}" style="display:inline-block;background:#275d6b;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500">Ver incidencia</a>
     `),
   };
 }
@@ -58,7 +58,7 @@ export function incidentCreatedAgent(data: {
         <p style="margin:0;font-size:14px;color:#6b7280">${data.reference}</p>
         <p style="margin:4px 0 0;font-size:15px;color:#111827;font-weight:500">${data.subject}</p>
       </div>
-      <a href="${BASE_URL}/incidencias/${data.incidentId}" style="display:inline-block;background:#2563eb;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500">Abrir incidencia</a>
+      <a href="${BASE_URL}/incidencias/${data.incidentId}" style="display:inline-block;background:#275d6b;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500">Abrir incidencia</a>
     `),
   };
 }
@@ -79,7 +79,7 @@ export function newMessageNotification(data: {
         <p style="margin:0;font-size:14px;color:#6b7280">${data.subject}</p>
         <p style="margin:8px 0 0;font-size:14px;color:#374151">${data.preview.slice(0, 200)}${data.preview.length > 200 ? "..." : ""}</p>
       </div>
-      <a href="${BASE_URL}/incidencias/${data.incidentId}" style="display:inline-block;background:#2563eb;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500">Ver conversación</a>
+      <a href="${BASE_URL}/incidencias/${data.incidentId}" style="display:inline-block;background:#275d6b;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500">Ver conversación</a>
     `),
   };
 }
@@ -108,7 +108,7 @@ export function statusChangedNotification(data: {
         <p style="margin:0;font-size:14px;color:#6b7280">${data.subject}</p>
         <p style="margin:8px 0 0;font-size:16px;color:#111827;font-weight:600">${STATUS_LABELS[data.newStatus] || data.newStatus}</p>
       </div>
-      <a href="${BASE_URL}/incidencias/${data.incidentId}" style="display:inline-block;background:#2563eb;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500">Ver incidencia</a>
+      <a href="${BASE_URL}/incidencias/${data.incidentId}" style="display:inline-block;background:#275d6b;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500">Ver incidencia</a>
     `),
   };
 }
@@ -129,7 +129,7 @@ export function userInvitation(data: {
         <p style="margin:0;font-size:14px;color:#374151"><strong>Contraseña temporal:</strong> <code style="background:#e5e7eb;padding:2px 6px;border-radius:4px">${data.tempPassword}</code></p>
       </div>
       <p style="color:#4b5563;margin:0 0 16px;font-size:14px">Deberás cambiar la contraseña en tu primer acceso.</p>
-      <a href="${BASE_URL}/login" style="display:inline-block;background:#2563eb;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500">Acceder al portal</a>
+      <a href="${BASE_URL}/login" style="display:inline-block;background:#275d6b;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500">Acceder al portal</a>
     `),
   };
 }

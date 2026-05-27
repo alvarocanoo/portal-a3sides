@@ -3,21 +3,7 @@ import { prisma } from "@/lib/db";
 import { Ticket, Clock, CheckCircle2, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-
-const STATUS_LABELS: Record<string, { label: string; className: string }> = {
-  OPEN: { label: "Abierta", className: "bg-orange-100 text-orange-800" },
-  IN_PROGRESS: { label: "En curso", className: "bg-blue-100 text-blue-800" },
-  WAITING_CLIENT: {
-    label: "Esp. cliente",
-    className: "bg-yellow-100 text-yellow-800",
-  },
-  WAITING_THIRD_PARTY: {
-    label: "Esp. tercero",
-    className: "bg-purple-100 text-purple-800",
-  },
-  RESOLVED: { label: "Resuelta", className: "bg-green-100 text-green-800" },
-  CLOSED: { label: "Cerrada", className: "bg-gray-100 text-gray-800" },
-};
+import { STATUS_CONFIG, formatDate } from "@/lib/constants";
 
 export default async function DashboardPage() {
   const session = await requireAuth();
@@ -43,9 +29,7 @@ export default async function DashboardPage() {
       prisma.incident.findMany({
         where: {
           ...where,
-          ...(role === "AGENT"
-            ? { assignedToId: session.user.id }
-            : {}),
+          ...(role === "AGENT" ? { assignedToId: session.user.id } : {}),
         },
         include: {
           company: { select: { name: true } },
@@ -61,25 +45,29 @@ export default async function DashboardPage() {
       label: "Total",
       value: total,
       icon: Ticket,
-      color: "text-blue-600 bg-blue-50",
+      color: "text-[#275d6b] bg-[#275d6b]/10",
+      href: "/incidencias",
     },
     {
       label: "Abiertas",
       value: open,
       icon: AlertTriangle,
       color: "text-orange-600 bg-orange-50",
+      href: "/incidencias?status=OPEN",
     },
     {
       label: "En curso",
       value: inProgress,
       icon: Clock,
       color: "text-yellow-600 bg-yellow-50",
+      href: "/incidencias?status=IN_PROGRESS",
     },
     {
       label: "Resueltas",
       value: resolved,
       icon: CheckCircle2,
       color: "text-green-600 bg-green-50",
+      href: "/incidencias?status=RESOLVED",
     },
   ];
 
@@ -94,16 +82,17 @@ export default async function DashboardPage() {
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-1">{greeting}</p>
+        <p className="text-sm text-gray-500 mt-0.5">{greeting}</p>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
-            <div
+            <Link
               key={stat.label}
-              className="bg-white rounded-lg border border-gray-200 p-5"
+              href={stat.href}
+              className="bg-white rounded-lg border border-gray-200 p-5 transition-colors hover:border-gray-300 hover:shadow-sm"
             >
               <div className="flex items-center gap-3">
                 <div className={`p-2 rounded-md ${stat.color}`}>
@@ -116,7 +105,7 @@ export default async function DashboardPage() {
                   <p className="text-sm text-gray-500">{stat.label}</p>
                 </div>
               </div>
-            </div>
+            </Link>
           );
         })}
       </div>
@@ -128,37 +117,46 @@ export default async function DashboardPage() {
           </h2>
           <Link
             href="/incidencias"
-            className="text-sm text-blue-600 hover:text-blue-800"
+            className="text-sm text-[#275d6b] hover:text-[#1f4e5b] font-medium"
           >
             Ver todas
           </Link>
         </div>
 
         {recentIncidents.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
+          <div className="p-10 text-center">
             {role === "CLIENT" ? (
               <div>
-                <p className="mb-3">No tienes incidencias abiertas.</p>
+                <Ticket className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500 mb-1">
+                  No tienes incidencias abiertas
+                </p>
+                <p className="text-sm text-gray-400 mb-4">
+                  Crea tu primera incidencia para recibir soporte
+                </p>
                 <Link
                   href="/incidencias/nueva"
-                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
+                  className="inline-block px-4 py-2 bg-[#275d6b] text-white text-sm font-medium rounded-md hover:bg-[#1f4e5b] transition-colors"
                 >
-                  Crear primera incidencia
+                  Crear incidencia
                 </Link>
               </div>
             ) : (
-              <p>No hay incidencias recientes.</p>
+              <div>
+                <Ticket className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+                <p className="text-gray-500">No hay incidencias recientes</p>
+              </div>
             )}
           </div>
         ) : (
           <div className="divide-y divide-gray-100">
             {recentIncidents.map((incident) => {
-              const status = STATUS_LABELS[incident.status];
+              const status = STATUS_CONFIG[incident.status];
               return (
                 <Link
                   key={incident.id}
                   href={`/incidencias/${incident.id}`}
-                  className="flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors"
+                  className="flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 transition-colors"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
@@ -179,7 +177,7 @@ export default async function DashboardPage() {
                     </p>
                   </div>
                   <span className="text-xs text-gray-400 ml-4 shrink-0">
-                    {new Date(incident.updatedAt).toLocaleDateString("es-ES")}
+                    {formatDate(incident.updatedAt)}
                   </span>
                 </Link>
               );

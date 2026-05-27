@@ -2,29 +2,9 @@ import { requireAuth } from "@/lib/auth/helpers";
 import { IncidentService } from "@/services/incident.service";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { Ticket } from "lucide-react";
 import { IncidentFilters } from "@/components/incidents/incident-filters";
-
-const STATUS_LABELS: Record<string, { label: string; className: string }> = {
-  OPEN: { label: "Abierta", className: "bg-orange-100 text-orange-800" },
-  IN_PROGRESS: { label: "En curso", className: "bg-blue-100 text-blue-800" },
-  WAITING_CLIENT: {
-    label: "Esp. cliente",
-    className: "bg-yellow-100 text-yellow-800",
-  },
-  WAITING_THIRD_PARTY: {
-    label: "Esp. tercero",
-    className: "bg-purple-100 text-purple-800",
-  },
-  RESOLVED: { label: "Resuelta", className: "bg-green-100 text-green-800" },
-  CLOSED: { label: "Cerrada", className: "bg-gray-100 text-gray-800" },
-};
-
-const PRIORITY_LABELS: Record<string, { label: string; className: string }> = {
-  LOW: { label: "Baja", className: "text-gray-500" },
-  MEDIUM: { label: "Media", className: "text-blue-600" },
-  HIGH: { label: "Alta", className: "text-orange-600 font-medium" },
-  CRITICAL: { label: "Crítica", className: "text-red-600 font-bold" },
-};
+import { STATUS_CONFIG, PRIORITY_CONFIG, formatDate } from "@/lib/constants";
 
 export default async function IncidenciasPage({
   searchParams,
@@ -56,7 +36,7 @@ export default async function IncidenciasPage({
         {session.user.role === "CLIENT" && (
           <Link
             href="/incidencias/nueva"
-            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
+            className="px-4 py-2 bg-[#275d6b] text-white text-sm font-medium rounded-md hover:bg-[#1f4e5b] transition-colors"
           >
             Nueva incidencia
           </Link>
@@ -72,11 +52,12 @@ export default async function IncidenciasPage({
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         {result.items.length === 0 ? (
           <div className="p-12 text-center">
+            <Ticket className="h-10 w-10 text-gray-300 mx-auto mb-3" />
             <p className="text-gray-500 mb-1">No hay incidencias</p>
             <p className="text-sm text-gray-400">
               {params.status || params.priority || params.search
                 ? "Prueba a cambiar los filtros"
-                : "Todavia no se ha creado ninguna incidencia"}
+                : "Todavía no se ha creado ninguna incidencia"}
             </p>
           </div>
         ) : (
@@ -112,8 +93,8 @@ export default async function IncidenciasPage({
             </thead>
             <tbody className="divide-y divide-gray-100">
               {result.items.map((incident) => {
-                const status = STATUS_LABELS[incident.status];
-                const priority = PRIORITY_LABELS[incident.priority];
+                const status = STATUS_CONFIG[incident.status];
+                const priority = PRIORITY_CONFIG[incident.priority];
                 return (
                   <tr
                     key={incident.id}
@@ -122,7 +103,7 @@ export default async function IncidenciasPage({
                     <td className="px-4 py-3">
                       <Link
                         href={`/incidencias/${incident.id}`}
-                        className="text-sm font-mono text-blue-600 hover:underline"
+                        className="text-sm font-mono text-[#275d6b] hover:underline"
                       >
                         {incident.reference}
                       </Link>
@@ -130,7 +111,7 @@ export default async function IncidenciasPage({
                     <td className="px-4 py-3 max-w-xs">
                       <Link
                         href={`/incidencias/${incident.id}`}
-                        className="text-sm text-gray-900 hover:text-blue-600 line-clamp-1"
+                        className="text-sm text-gray-900 hover:text-[#275d6b] line-clamp-1"
                       >
                         {incident.subject}
                       </Link>
@@ -168,10 +149,7 @@ export default async function IncidenciasPage({
                       </>
                     )}
                     <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
-                      {new Date(incident.createdAt).toLocaleDateString(
-                        "es-ES",
-                        { day: "2-digit", month: "short", year: "numeric" }
-                      )}
+                      {formatDate(incident.createdAt)}
                     </td>
                   </tr>
                 );
@@ -191,7 +169,7 @@ export default async function IncidenciasPage({
                 className={cn(
                   "px-3 py-1.5 text-sm rounded-md transition-colors",
                   page === result.page
-                    ? "bg-blue-600 text-white"
+                    ? "bg-[#275d6b] text-white"
                     : "text-gray-600 hover:bg-gray-100"
                 )}
               >

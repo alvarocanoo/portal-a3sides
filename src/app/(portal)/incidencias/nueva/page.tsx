@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { PRIORITY_OPTIONS } from "@/lib/constants";
 
 const CATEGORIES = [
   "a3FacturaGo",
@@ -12,12 +13,7 @@ const CATEGORIES = [
   "Otro",
 ];
 
-const PRIORITIES = [
-  { value: "LOW", label: "Baja" },
-  { value: "MEDIUM", label: "Media" },
-  { value: "HIGH", label: "Alta" },
-  { value: "CRITICAL", label: "Crítica" },
-];
+const PRIORITIES = PRIORITY_OPTIONS.filter((p) => p.value !== "");
 
 export default function NuevaIncidenciaPage() {
   const router = useRouter();
@@ -86,7 +82,7 @@ export default function NuevaIncidenciaPage() {
             maxLength={200}
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#275d6b]/40 focus:border-[#275d6b]"
             placeholder="Resumen breve del problema"
           />
         </div>
@@ -106,7 +102,7 @@ export default function NuevaIncidenciaPage() {
             rows={6}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#275d6b]/40 focus:border-[#275d6b]"
             placeholder="Describe el problema con el mayor detalle posible: qué estabas haciendo, qué error aparece, pasos para reproducirlo..."
           />
         </div>
@@ -123,7 +119,7 @@ export default function NuevaIncidenciaPage() {
               id="category"
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#275d6b]/40 focus:border-[#275d6b]"
             >
               <option value="">Seleccionar...</option>
               {CATEGORIES.map((cat) => (
@@ -145,7 +141,7 @@ export default function NuevaIncidenciaPage() {
               id="priority"
               value={priority}
               onChange={(e) => setPriority(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#275d6b]/40 focus:border-[#275d6b]"
             >
               {PRIORITIES.map((p) => (
                 <option key={p.value} value={p.value}>
@@ -160,7 +156,7 @@ export default function NuevaIncidenciaPage() {
           <button
             type="submit"
             disabled={loading}
-            className="px-5 py-2.5 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-5 py-2.5 bg-[#275d6b] text-white font-medium rounded-md hover:bg-[#1f4e5b] focus:outline-none focus:ring-2 focus:ring-[#275d6b]/40 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {loading ? "Creando..." : "Crear incidencia"}
           </button>

@@ -127,7 +127,7 @@ export function CreateCompanyForm() {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
+        className="inline-flex items-center gap-1 px-4 py-2 bg-[#275d6b] text-white text-sm font-medium rounded-md hover:bg-[#1f4e5b] transition-colors"
       >
         <Plus className="h-4 w-4" />
         Nueva empresa
@@ -154,7 +154,7 @@ export function CreateCompanyForm() {
             onClick={() => setMode("manual")}
             className={`flex-1 py-2.5 text-sm font-medium text-center ${
               mode === "manual"
-                ? "text-blue-600 border-b-2 border-blue-600"
+                ? "text-[#275d6b] border-b-2 border-[#275d6b]"
                 : "text-gray-500 hover:text-gray-700"
             }`}
           >
@@ -164,7 +164,7 @@ export function CreateCompanyForm() {
             onClick={() => setMode("irecursos")}
             className={`flex-1 py-2.5 text-sm font-medium text-center ${
               mode === "irecursos"
-                ? "text-blue-600 border-b-2 border-blue-600"
+                ? "text-[#275d6b] border-b-2 border-[#275d6b]"
                 : "text-gray-500 hover:text-gray-700"
             }`}
           >
@@ -189,12 +189,12 @@ export function CreateCompanyForm() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSearchIRecursos()}
                   placeholder="Buscar por nombre o código de cliente..."
-                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#275d6b]/40"
                 />
                 <button
                   onClick={handleSearchIRecursos}
                   disabled={searching || searchQuery.length < 2}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                  className="px-4 py-2 bg-[#275d6b] text-white rounded-md hover:bg-[#1f4e5b] disabled:opacity-50"
                 >
                   <Search className="h-4 w-4" />
                 </button>
@@ -206,7 +206,7 @@ export function CreateCompanyForm() {
 
               {searching && (
                 <div className="flex items-center justify-center py-4">
-                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-200 border-t-blue-600" />
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-200 border-t-[#275d6b]" />
                   <span className="ml-2 text-sm text-gray-500">
                     Buscando en iRecursos...
                   </span>
@@ -256,7 +256,7 @@ export function CreateCompanyForm() {
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#275d6b]/40"
                 />
               </div>
               <div>
@@ -267,7 +267,7 @@ export function CreateCompanyForm() {
                   type="text"
                   value={taxId}
                   onChange={(e) => setTaxId(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#275d6b]/40"
                 />
               </div>
               <div>
@@ -278,7 +278,7 @@ export function CreateCompanyForm() {
                   type="text"
                   value={irecursosClientId}
                   onChange={(e) => setIrecursosClientId(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#275d6b]/40"
                   placeholder="Opcional"
                 />
               </div>
@@ -293,7 +293,7 @@ export function CreateCompanyForm() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                  className="px-4 py-2 text-sm bg-[#275d6b] text-white rounded-md hover:bg-[#1f4e5b] disabled:opacity-50"
                 >
                   {loading ? "Creando..." : "Crear empresa"}
                 </button>

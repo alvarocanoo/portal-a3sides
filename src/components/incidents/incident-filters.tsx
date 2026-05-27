@@ -3,30 +3,13 @@
 import { useRouter, usePathname } from "next/navigation";
 import { useState } from "react";
 import { Search, X } from "lucide-react";
+import { STATUS_OPTIONS, PRIORITY_OPTIONS } from "@/lib/constants";
 
 interface Props {
   currentStatus?: string;
   currentPriority?: string;
   currentSearch?: string;
 }
-
-const STATUSES = [
-  { value: "", label: "Todos" },
-  { value: "OPEN", label: "Abiertas" },
-  { value: "IN_PROGRESS", label: "En curso" },
-  { value: "WAITING_CLIENT", label: "Esp. cliente" },
-  { value: "WAITING_THIRD_PARTY", label: "Esp. tercero" },
-  { value: "RESOLVED", label: "Resueltas" },
-  { value: "CLOSED", label: "Cerradas" },
-];
-
-const PRIORITIES = [
-  { value: "", label: "Todas" },
-  { value: "LOW", label: "Baja" },
-  { value: "MEDIUM", label: "Media" },
-  { value: "HIGH", label: "Alta" },
-  { value: "CRITICAL", label: "Crítica" },
-];
 
 export function IncidentFilters({
   currentStatus,
@@ -75,7 +58,7 @@ export function IncidentFilters({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar por referencia, asunto..."
-              className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#275d6b]/40 focus:border-[#275d6b] transition-shadow"
             />
           </div>
         </form>
@@ -83,9 +66,9 @@ export function IncidentFilters({
         <select
           value={currentStatus || ""}
           onChange={(e) => updateParams("status", e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#275d6b]/40 focus:border-[#275d6b] transition-shadow"
         >
-          {STATUSES.map((s) => (
+          {STATUS_OPTIONS.map((s) => (
             <option key={s.value} value={s.value}>
               {s.label}
             </option>
@@ -95,9 +78,9 @@ export function IncidentFilters({
         <select
           value={currentPriority || ""}
           onChange={(e) => updateParams("priority", e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#275d6b]/40 focus:border-[#275d6b] transition-shadow"
         >
-          {PRIORITIES.map((p) => (
+          {PRIORITY_OPTIONS.map((p) => (
             <option key={p.value} value={p.value}>
               {p.label}
             </option>
@@ -107,7 +90,7 @@ export function IncidentFilters({
         {hasFilters && (
           <button
             onClick={clearFilters}
-            className="inline-flex items-center gap-1 px-3 py-2 text-sm text-gray-500 hover:text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
+            className="inline-flex items-center gap-1 px-3 py-2 text-sm text-gray-500 hover:text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#275d6b]/40 transition-shadow"
           >
             <X className="h-3.5 w-3.5" />
             Limpiar

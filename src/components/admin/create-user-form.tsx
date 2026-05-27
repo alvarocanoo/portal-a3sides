@@ -86,7 +86,7 @@ export function CreateUserForm({ companies }: Props) {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
+        className="inline-flex items-center gap-1 px-4 py-2 bg-[#275d6b] text-white text-sm font-medium rounded-md hover:bg-[#1f4e5b] transition-colors"
       >
         <Plus className="h-4 w-4" />
         Nuevo usuario
@@ -144,7 +144,7 @@ export function CreateUserForm({ companies }: Props) {
               </button>
               <button
                 onClick={handleClose}
-                className="px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                className="px-3 py-2 text-sm bg-[#275d6b] text-white rounded-md hover:bg-[#1f4e5b]"
               >
                 Cerrar
               </button>
@@ -168,7 +168,7 @@ export function CreateUserForm({ companies }: Props) {
                   required
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#275d6b]/40"
                 />
               </div>
               <div>
@@ -180,7 +180,7 @@ export function CreateUserForm({ companies }: Props) {
                   required
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#275d6b]/40"
                 />
               </div>
             </div>
@@ -194,7 +194,7 @@ export function CreateUserForm({ companies }: Props) {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#275d6b]/40"
               />
             </div>
 
@@ -207,7 +207,7 @@ export function CreateUserForm({ companies }: Props) {
                 onChange={(e) =>
                   setRole(e.target.value as "CLIENT" | "AGENT" | "ADMIN")
                 }
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#275d6b]/40"
               >
                 <option value="CLIENT">Cliente</option>
                 <option value="AGENT">Agente</option>
@@ -224,7 +224,7 @@ export function CreateUserForm({ companies }: Props) {
                   value={companyId}
                   onChange={(e) => setCompanyId(e.target.value)}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#275d6b]/40"
                 >
                   <option value="">Seleccionar empresa...</option>
                   {companies.map((c) => (
@@ -247,7 +247,7 @@ export function CreateUserForm({ companies }: Props) {
               <button
                 type="submit"
                 disabled={loading}
-                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                className="px-4 py-2 text-sm bg-[#275d6b] text-white rounded-md hover:bg-[#1f4e5b] disabled:opacity-50"
               >
                 {loading ? "Creando..." : "Crear usuario"}
               </button>

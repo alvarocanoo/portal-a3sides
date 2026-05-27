@@ -3,12 +3,7 @@
 import { signOut } from "next-auth/react";
 import type { Role } from "@prisma/client";
 import { LogOut } from "lucide-react";
-
-const ROLE_LABELS: Record<Role, string> = {
-  CLIENT: "Cliente",
-  AGENT: "Agente",
-  ADMIN: "Administrador",
-};
+import { ROLE_LABELS } from "@/lib/constants";
 
 interface HeaderProps {
   user: {

@@ -6,28 +6,12 @@ import type { Role } from "@prisma/client";
 import { cn } from "@/lib/utils";
 import { MessageSquare, Lock, Paperclip, ArrowLeft } from "lucide-react";
 import Link from "next/link";
-
-const STATUS_LABELS: Record<string, { label: string; className: string }> = {
-  OPEN: { label: "Abierta", className: "bg-orange-100 text-orange-800" },
-  IN_PROGRESS: { label: "En curso", className: "bg-blue-100 text-blue-800" },
-  WAITING_CLIENT: {
-    label: "Esperando cliente",
-    className: "bg-yellow-100 text-yellow-800",
-  },
-  WAITING_THIRD_PARTY: {
-    label: "Esperando tercero",
-    className: "bg-purple-100 text-purple-800",
-  },
-  RESOLVED: { label: "Resuelta", className: "bg-green-100 text-green-800" },
-  CLOSED: { label: "Cerrada", className: "bg-gray-100 text-gray-800" },
-};
-
-const PRIORITY_LABELS: Record<string, string> = {
-  LOW: "Baja",
-  MEDIUM: "Media",
-  HIGH: "Alta",
-  CRITICAL: "Crítica",
-};
+import {
+  STATUS_CONFIG,
+  PRIORITY_CONFIG,
+  ROLE_LABELS,
+  formatDateTime,
+} from "@/lib/constants";
 
 interface IncidentDetailProps {
   incident: {
@@ -89,7 +73,7 @@ export function IncidentDetail({ incident, currentUser }: IncidentDetailProps) {
   const [sending, setSending] = useState(false);
   const [statusLoading, setStatusLoading] = useState(false);
 
-  const status = STATUS_LABELS[incident.status];
+  const status = STATUS_CONFIG[incident.status];
   const isClosed = incident.status === "CLOSED";
 
   async function handleSendMessage(e: React.FormEvent) {
@@ -163,7 +147,7 @@ export function IncidentDetail({ incident, currentUser }: IncidentDetailProps) {
           <div>
             <p className="text-gray-500">Prioridad</p>
             <p className="font-medium">
-              {PRIORITY_LABELS[incident.priority]}
+              {PRIORITY_CONFIG[incident.priority]?.label}
             </p>
           </div>
           <div>
@@ -201,7 +185,7 @@ export function IncidentDetail({ incident, currentUser }: IncidentDetailProps) {
                 <button
                   onClick={() => handleStatusChange("IN_PROGRESS")}
                   disabled={statusLoading}
-                  className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+                  className="px-3 py-1.5 text-sm bg-[#275d6b] text-white rounded-md hover:bg-[#1f4e5b] disabled:opacity-50"
                 >
                   Tomar incidencia
                 </button>
@@ -266,7 +250,7 @@ export function IncidentDetail({ incident, currentUser }: IncidentDetailProps) {
               <a
                 key={att.id}
                 href={`/api/attachments/${att.id}`}
-                className="inline-flex items-center gap-1 px-2 py-1 text-xs text-blue-600 bg-blue-50 rounded hover:bg-blue-100"
+                className="inline-flex items-center gap-1 px-2 py-1 text-xs text-[#275d6b] bg-[#275d6b]/5 rounded hover:bg-[#275d6b]/10"
               >
                 <Paperclip className="h-3 w-3" />
                 {att.fileName}
@@ -293,7 +277,7 @@ export function IncidentDetail({ incident, currentUser }: IncidentDetailProps) {
                 {msg.author.firstName} {msg.author.lastName}
               </span>
               <span className="text-xs text-gray-400">
-                {msg.author.role === "CLIENT" ? "Cliente" : "Agente"}
+                {ROLE_LABELS[msg.author.role]}
               </span>
               {msg.isInternal && (
                 <span className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
@@ -302,7 +286,7 @@ export function IncidentDetail({ incident, currentUser }: IncidentDetailProps) {
                 </span>
               )}
               <span className="text-xs text-gray-400 ml-auto">
-                {new Date(msg.createdAt).toLocaleString("es-ES")}
+                {formatDateTime(msg.createdAt)}
               </span>
             </div>
             <p className="text-sm text-gray-700 whitespace-pre-wrap">
@@ -314,7 +298,7 @@ export function IncidentDetail({ incident, currentUser }: IncidentDetailProps) {
                   <a
                     key={att.id}
                     href={`/api/attachments/${att.id}`}
-                    className="inline-flex items-center gap-1 px-2 py-1 text-xs text-blue-600 bg-blue-50 rounded hover:bg-blue-100"
+                    className="inline-flex items-center gap-1 px-2 py-1 text-xs text-[#275d6b] bg-[#275d6b]/5 rounded hover:bg-[#275d6b]/10"
                   >
                     <Paperclip className="h-3 w-3" />
                     {att.fileName}
@@ -354,14 +338,14 @@ export function IncidentDetail({ incident, currentUser }: IncidentDetailProps) {
             onChange={(e) => setNewMessage(e.target.value)}
             rows={3}
             required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#275d6b]/40 focus:border-[#275d6b] text-sm"
             placeholder="Escribe tu mensaje..."
           />
           <div className="mt-2 flex justify-end">
             <button
               type="submit"
               disabled={sending || !newMessage.trim()}
-              className="px-4 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 text-sm bg-[#275d6b] text-white rounded-md hover:bg-[#1f4e5b] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {sending ? "Enviando..." : "Enviar"}
             </button>
