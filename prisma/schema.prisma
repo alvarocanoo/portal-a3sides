@@ -201,3 +201,13 @@ model AuditLog {
   @@index([createdAt])
   @@map("audit_logs")
 }
+
+// ─── Counters ───────────────────────────────────────────
+
+model IncidentCounter {
+  id    String @id @default("singleton")
+  year  Int
+  count Int    @default(0)
+
+  @@map("incident_counters")
+}

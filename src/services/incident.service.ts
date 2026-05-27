@@ -197,6 +197,11 @@ export class IncidentService {
   ) {
     if (userRole === "CLIENT") throw new Error("FORBIDDEN");
 
+    const incident = await prisma.incident.findUnique({
+      where: { id: incidentId },
+    });
+    if (!incident) throw new Error("INCIDENT_NOT_FOUND");
+
     const agent = await prisma.user.findUnique({
       where: { id: assignedToId },
     });
@@ -284,18 +289,25 @@ export class IncidentService {
     const year = new Date().getFullYear();
     const prefix = `INC-${year}-`;
 
-    const lastIncident = await prisma.incident.findFirst({
-      where: { reference: { startsWith: prefix } },
-      orderBy: { reference: "desc" },
-      select: { reference: true },
+    const counter = await prisma.$transaction(async (tx) => {
+      const existing = await tx.incidentCounter.findUnique({
+        where: { id: "singleton" },
+      });
+
+      if (!existing || existing.year !== year) {
+        return tx.incidentCounter.upsert({
+          where: { id: "singleton" },
+          update: { year, count: 1 },
+          create: { id: "singleton", year, count: 1 },
+        });
+      }
+
+      return tx.incidentCounter.update({
+        where: { id: "singleton" },
+        data: { count: { increment: 1 } },
+      });
     });
 
-    let nextNumber = 1;
-    if (lastIncident) {
-      const lastNumber = parseInt(lastIncident.reference.split("-").pop() || "0", 10);
-      nextNumber = lastNumber + 1;
-    }
-
-    return `${prefix}${nextNumber.toString().padStart(5, "0")}`;
+    return `${prefix}${counter.count.toString().padStart(5, "0")}`;
   }
 }
