@@ -255,9 +255,9 @@ export function IncidentDetail({ incident, currentUser }: IncidentDetailProps) {
       </div>
 
       {/* Descripción */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 mb-4">
+      <div className="bg-white rounded-lg border border-gray-200 p-6 mb-4 overflow-hidden">
         <h2 className="text-sm font-medium text-gray-500 mb-2">Descripción</h2>
-        <p className="text-gray-900 whitespace-pre-wrap">
+        <p className="text-gray-900 whitespace-pre-wrap break-words">
           {incident.description}
         </p>
         {incident.attachments.length > 0 && (

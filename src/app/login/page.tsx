@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -41,14 +42,19 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#f0f4f8] to-[#dce5ef] px-4">
       <div className="w-full max-w-md">
-        <div className="bg-white rounded-lg shadow-md p-8">
+        <div className="bg-white rounded-xl shadow-lg p-8 border border-gray-100">
           <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-gray-900">
-              Portal de Soporte
-            </h1>
-            <p className="text-sm text-gray-500 mt-1">a3sides</p>
+            <Image
+              src="/logo.svg"
+              alt="a3sides"
+              width={180}
+              height={45}
+              className="mx-auto mb-4"
+              priority
+            />
+            <p className="text-sm text-gray-500">Portal de Soporte</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -72,7 +78,7 @@ export default function LoginPage() {
                 autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-[#1e3a5f]"
                 placeholder="tu@email.com"
               />
             </div>
@@ -91,19 +97,23 @@ export default function LoginPage() {
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:border-[#1e3a5f]"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 px-4 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="w-full py-2.5 px-4 bg-[#1e3a5f] text-white font-medium rounded-lg hover:bg-[#2a4d73] focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {loading ? "Entrando..." : "Entrar"}
             </button>
           </form>
         </div>
+
+        <p className="text-center text-xs text-gray-400 mt-6">
+          a3sides Software Solutions
+        </p>
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import type { Role } from "@prisma/client";
 import {
@@ -66,10 +67,18 @@ export function Sidebar({ role }: { role: Role }) {
 
   return (
     <aside className="w-64 bg-white border-r border-gray-200 flex flex-col shrink-0">
-      <div className="h-16 flex items-center px-6 border-b border-gray-200">
+      <div className="h-16 flex items-center px-5 border-b border-gray-200">
         <Link href="/dashboard" className="flex items-center gap-2">
-          <span className="text-lg font-bold text-blue-600">a3sides</span>
-          <span className="text-sm text-gray-400">Soporte</span>
+          <Image
+            src="/logo-small.svg"
+            alt="a3sides"
+            width={100}
+            height={24}
+            priority
+          />
+          <span className="text-xs font-medium text-gray-400 border-l border-gray-200 pl-2">
+            Soporte
+          </span>
         </Link>
       </div>
 
@@ -85,7 +94,7 @@ export function Sidebar({ role }: { role: Role }) {
               className={cn(
                 "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
                 isActive
-                  ? "bg-blue-50 text-blue-700"
+                  ? "bg-[#1e3a5f]/10 text-[#1e3a5f]"
                   : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
               )}
             >
@@ -95,6 +104,12 @@ export function Sidebar({ role }: { role: Role }) {
           );
         })}
       </nav>
+
+      <div className="px-5 py-3 border-t border-gray-100">
+        <p className="text-[10px] text-gray-300 uppercase tracking-wider">
+          Software Solutions
+        </p>
+      </div>
     </aside>
   );
 }
