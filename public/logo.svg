@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 50" fill="none">
-  <text x="0" y="32" font-family="'Segoe UI', Arial, sans-serif" font-size="30" font-weight="700" fill="#1e3a5f" letter-spacing="1">
-    <tspan>A</tspan><tspan font-size="28">3</tspan><tspan>SIDES</tspan>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 55" fill="none">
+  <text x="2" y="34" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="34" font-weight="700" fill="#275d6b">
+    <tspan>a</tspan><tspan font-size="31">3</tspan><tspan>SIDES</tspan>
   </text>
-  <text x="1" y="46" font-family="'Segoe UI', Arial, sans-serif" font-size="10" font-weight="400" fill="#5a7a9a" letter-spacing="3.5">SOFTWARE SOLUTIONS</text>
+  <text x="3" y="50" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif" font-size="11.5" font-weight="500" fill="#275d6b" letter-spacing="4">SOFTWARE SOLUTIONS</text>
 </svg>

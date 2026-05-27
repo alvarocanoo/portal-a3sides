@@ -8,7 +8,7 @@ function layout(content: string): string {
 <body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
   <div style="max-width:600px;margin:0 auto;padding:24px">
     <div style="background:#fff;border-radius:8px;border:1px solid #e5e7eb;overflow:hidden">
-      <div style="background:#1e3a5f;padding:16px 24px">
+      <div style="background:#275d6b;padding:16px 24px">
         <span style="color:#fff;font-size:18px;font-weight:700;letter-spacing:0.5px">A3SIDES</span>
         <span style="color:#8bacc8;font-size:13px;margin-left:8px">Soporte</span>
       </div>
