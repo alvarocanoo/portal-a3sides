@@ -39,14 +39,14 @@ export function IncidentFilters({
 
   function updateParams(key: string, value: string) {
     const params = new URLSearchParams();
-    if (key === "status" && value) params.set("status", value);
-    else if (currentStatus) params.set("status", currentStatus);
 
-    if (key === "priority" && value) params.set("priority", value);
-    else if (currentPriority) params.set("priority", currentPriority);
+    const status = key === "status" ? value : (currentStatus || "");
+    const priority = key === "priority" ? value : (currentPriority || "");
+    const searchVal = key === "search" ? value : (currentSearch || "");
 
-    if (key === "search" && value) params.set("search", value);
-    else if (key !== "search" && currentSearch) params.set("search", currentSearch);
+    if (status) params.set("status", status);
+    if (priority) params.set("priority", priority);
+    if (searchVal) params.set("search", searchVal);
 
     const qs = params.toString();
     router.push(`${pathname}${qs ? `?${qs}` : ""}`);
