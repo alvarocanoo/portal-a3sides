@@ -10,8 +10,7 @@ export function middleware(request: NextRequest) {
 
   const sessionToken =
     request.cookies.get("authjs.session-token")?.value ||
-    request.cookies.get("__Secure-authjs.session-token")?.value ||
-    request.cookies.get("authjs.callback-url")?.value;
+    request.cookies.get("__Secure-authjs.session-token")?.value;
 
   if (!isPublic && !sessionToken) {
     const loginUrl = new URL("/login", request.url);
