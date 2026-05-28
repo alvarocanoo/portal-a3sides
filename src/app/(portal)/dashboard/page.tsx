@@ -5,12 +5,30 @@ import {
   Clock,
   CheckCircle2,
   AlertTriangle,
-  Pause,
+  Hourglass,
+  ExternalLink,
+  CheckCheck,
+  type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { STATUS_CONFIG } from "@/lib/incident-states";
+import {
+  IncidentStatus,
+  STATUS_CONFIG,
+  statusClass,
+  statusLabel,
+} from "@/lib/incident-states";
 import { formatDate } from "@/lib/constants";
+
+// Iconos por estado — el resto (label, color, filtro) viene de STATUS_CONFIG.
+const STATUS_ICONS: Record<IncidentStatus, LucideIcon> = {
+  [IncidentStatus.OPEN]: AlertTriangle,
+  [IncidentStatus.IN_PROGRESS]: Clock,
+  [IncidentStatus.WAITING_CLIENT]: Hourglass,
+  [IncidentStatus.WAITING_THIRD_PARTY]: ExternalLink,
+  [IncidentStatus.RESOLVED]: CheckCircle2,
+  [IncidentStatus.CLOSED]: CheckCheck,
+};
 
 export default async function DashboardPage() {
   const session = await requireAuth();
@@ -18,71 +36,36 @@ export default async function DashboardPage() {
 
   const where = role === "CLIENT" ? { companyId: companyId! } : {};
 
-  const [total, open, inProgress, waiting, finished, recentIncidents] =
-    await Promise.all([
-      prisma.incident.count({ where }),
-      prisma.incident.count({ where: { ...where, status: "OPEN" } }),
-      prisma.incident.count({ where: { ...where, status: "IN_PROGRESS" } }),
-      prisma.incident.count({
-        where: {
-          ...where,
-          status: { in: ["WAITING_CLIENT", "WAITING_THIRD_PARTY"] },
-        },
-      }),
-      prisma.incident.count({
-        where: { ...where, status: { in: ["RESOLVED", "CLOSED"] } },
-      }),
-      prisma.incident.findMany({
-        where: {
-          ...where,
-          ...(role === "AGENT" ? { assignedToId: session.user.id } : {}),
-        },
-        include: {
-          company: { select: { name: true } },
-          createdBy: { select: { firstName: true, lastName: true } },
-        },
-        orderBy: { updatedAt: "desc" },
-        take: 5,
-      }),
-    ]);
+  const [counts, recentIncidents] = await Promise.all([
+    prisma.incident.groupBy({
+      by: ["status"],
+      where,
+      _count: { _all: true },
+    }),
+    prisma.incident.findMany({
+      where: {
+        ...where,
+        ...(role === "AGENT" ? { assignedToId: session.user.id } : {}),
+      },
+      include: {
+        company: { select: { name: true } },
+        createdBy: { select: { firstName: true, lastName: true } },
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 5,
+    }),
+  ]);
 
-  const stats = [
-    {
-      label: "Total",
-      value: total,
-      icon: Ticket,
-      color: "text-[#275d6b] bg-[#275d6b]/10",
-      href: "/incidencias",
-    },
-    {
-      label: "Abiertas",
-      value: open,
-      icon: AlertTriangle,
-      color: "text-orange-600 bg-orange-50",
-      href: "/incidencias?status=OPEN",
-    },
-    {
-      label: "En curso",
-      value: inProgress,
-      icon: Clock,
-      color: "text-blue-600 bg-blue-50",
-      href: "/incidencias?status=IN_PROGRESS",
-    },
-    {
-      label: "En espera",
-      value: waiting,
-      icon: Pause,
-      color: "text-yellow-600 bg-yellow-50",
-      href: "/incidencias?status=WAITING_CLIENT",
-    },
-    {
-      label: "Finalizadas",
-      value: finished,
-      icon: CheckCircle2,
-      color: "text-green-600 bg-green-50",
-      href: "/incidencias?status=RESOLVED",
-    },
-  ];
+  // Construir mapa de conteos por estado + total (suma de todos)
+  const countByStatus: Record<string, number> = {};
+  let total = 0;
+  for (const c of counts) {
+    countByStatus[c.status] = c._count._all;
+    total += c._count._all;
+  }
+
+  // Una tarjeta "Total" + una por cada estado, en el orden del enum.
+  const statusOrder: IncidentStatus[] = Object.keys(STATUS_CONFIG) as IncidentStatus[];
 
   const greeting =
     role === "CLIENT"
@@ -98,24 +81,43 @@ export default async function DashboardPage() {
         <p className="text-sm text-gray-500 mt-0.5">{greeting}</p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
-        {stats.map((stat) => {
-          const Icon = stat.icon;
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-7 gap-4 mb-8">
+        {/* Total — siempre primero, con color de marca */}
+        <Link
+          href="/incidencias"
+          className="bg-white rounded-lg border border-gray-200 p-5 transition-colors hover:border-gray-300 hover:shadow-sm"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-md text-[#275d6b] bg-[#275d6b]/10">
+              <Ticket className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-2xl font-bold text-gray-900">{total}</p>
+              <p className="text-sm text-gray-500 truncate">Total</p>
+            </div>
+          </div>
+        </Link>
+
+        {/* Una tarjeta por estado */}
+        {statusOrder.map((status) => {
+          const Icon = STATUS_ICONS[status];
           return (
             <Link
-              key={stat.label}
-              href={stat.href}
+              key={status}
+              href={`/incidencias?status=${status}`}
               className="bg-white rounded-lg border border-gray-200 p-5 transition-colors hover:border-gray-300 hover:shadow-sm"
             >
               <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-md ${stat.color}`}>
+                <div className={cn("p-2 rounded-md", statusClass(status))}>
                   <Icon className="h-5 w-5" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-2xl font-bold text-gray-900">
-                    {stat.value}
+                    {countByStatus[status] ?? 0}
                   </p>
-                  <p className="text-sm text-gray-500">{stat.label}</p>
+                  <p className="text-sm text-gray-500 truncate">
+                    {statusLabel(status)}
+                  </p>
                 </div>
               </div>
             </Link>
