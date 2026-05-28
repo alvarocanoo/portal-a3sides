@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { Role } from "@prisma/client";
 import { cn } from "@/lib/utils";
-import { MessageSquare, Lock, Paperclip, ArrowLeft } from "lucide-react";
+import { MessageSquare, Lock, Paperclip, ArrowLeft, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { statusLabel, statusClass } from "@/lib/incident-states";
 import { priorityLabel, ROLE_LABELS, formatDateTime } from "@/lib/constants";
+import { FileUploader, type PendingFile } from "@/components/incidents/file-uploader";
+import { uploadAttachment } from "@/lib/upload";
 
 interface IncidentDetailProps {
   incident: {
@@ -68,6 +70,28 @@ export function IncidentDetail({ incident, currentUser }: IncidentDetailProps) {
   const [isInternal, setIsInternal] = useState(false);
   const [sending, setSending] = useState(false);
   const [statusLoading, setStatusLoading] = useState(false);
+  const [msgAttachments, setMsgAttachments] = useState<PendingFile[]>([]);
+  const [msgUploadingIdx, setMsgUploadingIdx] = useState<number | null>(null);
+  const [msgUploadProgress, setMsgUploadProgress] = useState(0);
+  const [creationWarnings, setCreationWarnings] = useState<string[]>([]);
+
+  // Recoge warnings de subida de adjuntos generadas en el formulario
+  // de creacion (cuando la incidencia se creo pero algun adjunto fallo)
+  useEffect(() => {
+    const key = `upload-warnings-${incident.id}`;
+    const raw = sessionStorage.getItem(key);
+    if (raw) {
+      try {
+        const warnings = JSON.parse(raw) as string[];
+        if (Array.isArray(warnings) && warnings.length > 0) {
+          setCreationWarnings(warnings);
+        }
+      } catch {
+        // ignorar JSON invalido
+      }
+      sessionStorage.removeItem(key);
+    }
+  }, [incident.id]);
 
   const status = { label: statusLabel(incident.status), className: statusClass(incident.status) };
   const isClosed = incident.status === "CLOSED";
@@ -75,6 +99,7 @@ export function IncidentDetail({ incident, currentUser }: IncidentDetailProps) {
   async function handleSendMessage(e: React.FormEvent) {
     e.preventDefault();
     if (!newMessage.trim()) return;
+    if (msgAttachments.some((a) => a.error)) return;
     setSending(true);
 
     try {
@@ -84,13 +109,29 @@ export function IncidentDetail({ incident, currentUser }: IncidentDetailProps) {
         body: JSON.stringify({ content: newMessage, isInternal }),
       });
 
-      if (res.ok) {
-        setNewMessage("");
-        setIsInternal(false);
-        router.refresh();
+      if (!res.ok) return;
+
+      const message = await res.json();
+
+      // Subir adjuntos del mensaje uno por uno con progreso
+      for (let i = 0; i < msgAttachments.length; i++) {
+        setMsgUploadingIdx(i);
+        setMsgUploadProgress(0);
+        await uploadAttachment({
+          file: msgAttachments[i].file,
+          messageId: message.id,
+          onProgress: (p) => setMsgUploadProgress(p.percent),
+        });
       }
+      setMsgUploadingIdx(null);
+
+      setNewMessage("");
+      setIsInternal(false);
+      setMsgAttachments([]);
+      router.refresh();
     } finally {
       setSending(false);
+      setMsgUploadingIdx(null);
     }
   }
 
@@ -117,6 +158,33 @@ export function IncidentDetail({ incident, currentUser }: IncidentDetailProps) {
         <ArrowLeft className="h-4 w-4" />
         Volver a incidencias
       </Link>
+
+      {creationWarnings.length > 0 && (
+        <div className="mb-4 bg-amber-50 border border-amber-200 rounded-md p-3 flex items-start gap-2">
+          <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+          <div className="text-sm flex-1">
+            <p className="text-amber-800 font-medium">
+              La incidencia se creó, pero algunos adjuntos fallaron:
+            </p>
+            <ul className="mt-1 text-amber-700 text-xs space-y-0.5 list-disc list-inside">
+              {creationWarnings.map((w, i) => (
+                <li key={i}>{w}</li>
+              ))}
+            </ul>
+            <p className="mt-1.5 text-xs text-amber-700">
+              Puedes intentar adjuntarlos de nuevo desde el formulario de mensaje.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCreationWarnings([])}
+            className="text-amber-600 hover:text-amber-800"
+            aria-label="Cerrar aviso"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Cabecera */}
       <div className="bg-white rounded-lg border border-gray-200 p-6 mb-4">
@@ -334,16 +402,52 @@ export function IncidentDetail({ incident, currentUser }: IncidentDetailProps) {
             onChange={(e) => setNewMessage(e.target.value)}
             rows={3}
             required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#275d6b]/40 focus:border-[#275d6b] text-sm"
+            disabled={sending}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#275d6b]/40 focus:border-[#275d6b] text-sm disabled:opacity-60"
             placeholder="Escribe tu mensaje..."
           />
-          <div className="mt-2 flex justify-end">
+
+          <div className="mt-3">
+            <FileUploader
+              files={msgAttachments}
+              onFilesChange={setMsgAttachments}
+              disabled={sending}
+            />
+          </div>
+
+          {msgUploadingIdx !== null && (
+            <div className="mt-3 bg-gray-50 border border-gray-200 rounded-md p-3">
+              <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                <span className="truncate pr-2">
+                  Subiendo {msgUploadingIdx + 1}/{msgAttachments.length}:{" "}
+                  {msgAttachments[msgUploadingIdx]?.file.name}
+                </span>
+                <span className="font-mono">{msgUploadProgress}%</span>
+              </div>
+              <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-[#275d6b] transition-all"
+                  style={{ width: `${msgUploadProgress}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="mt-3 flex justify-end">
             <button
               type="submit"
-              disabled={sending || !newMessage.trim()}
+              disabled={
+                sending ||
+                !newMessage.trim() ||
+                msgAttachments.some((a) => a.error)
+              }
               className="px-4 py-2 text-sm bg-[#275d6b] text-white rounded-md hover:bg-[#1f4e5b] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {sending ? "Enviando..." : "Enviar"}
+              {sending
+                ? msgUploadingIdx !== null
+                  ? "Subiendo archivos..."
+                  : "Enviando..."
+                : "Enviar"}
             </button>
           </div>
         </form>

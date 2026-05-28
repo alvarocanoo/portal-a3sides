@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { PRIORITY_OPTIONS } from "@/lib/constants";
+import { FileUploader, type PendingFile } from "@/components/incidents/file-uploader";
+import { uploadAttachment } from "@/lib/upload";
 
 const STATIC_CATEGORIES = [
   "a3FacturaGo",
@@ -38,6 +40,9 @@ export default function NuevaIncidenciaPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [products, setProducts] = useState<ProductsState>({ kind: "loading" });
+  const [attachments, setAttachments] = useState<PendingFile[]>([]);
+  const [uploadingIdx, setUploadingIdx] = useState<number | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,6 +79,13 @@ export default function NuevaIncidenciaPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+
+    // No permitir submit si hay archivos con error de validacion en cliente
+    if (attachments.some((a) => a.error)) {
+      setError("Quita los archivos marcados en rojo antes de continuar");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -90,11 +102,37 @@ export default function NuevaIncidenciaPage() {
       }
 
       const incident = await res.json();
+
+      // Subir adjuntos asociados a la nueva incidencia
+      const warnings: string[] = [];
+      for (let i = 0; i < attachments.length; i++) {
+        setUploadingIdx(i);
+        setUploadProgress(0);
+        const result = await uploadAttachment({
+          file: attachments[i].file,
+          incidentId: incident.id,
+          onProgress: (p) => setUploadProgress(p.percent),
+        });
+        if (!result.ok) {
+          warnings.push(`${attachments[i].file.name}: ${result.error}`);
+        }
+      }
+      setUploadingIdx(null);
+
+      // La incidencia se ha creado siempre; si hubo fallos en adjuntos,
+      // los pasamos como query param para mostrar el aviso en el detalle.
+      if (warnings.length > 0) {
+        sessionStorage.setItem(
+          `upload-warnings-${incident.id}`,
+          JSON.stringify(warnings)
+        );
+      }
       router.push(`/incidencias/${incident.id}`);
     } catch {
       setError("Error de conexión");
     } finally {
       setLoading(false);
+      setUploadingIdx(null);
     }
   }
 
@@ -215,13 +253,51 @@ export default function NuevaIncidenciaPage() {
           </div>
         </div>
 
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            Adjuntos
+            <span className="ml-1 text-gray-400 font-normal">(opcional)</span>
+          </label>
+          <FileUploader
+            files={attachments}
+            onFilesChange={setAttachments}
+            disabled={loading}
+          />
+        </div>
+
+        {uploadingIdx !== null && (
+          <div className="bg-gray-50 border border-gray-200 rounded-md p-3">
+            <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+              <span className="truncate pr-2">
+                Subiendo {uploadingIdx + 1}/{attachments.length}:{" "}
+                {attachments[uploadingIdx]?.file.name}
+              </span>
+              <span className="font-mono">{uploadProgress}%</span>
+            </div>
+            <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[#275d6b] transition-all"
+                style={{ width: `${uploadProgress}%` }}
+              />
+            </div>
+          </div>
+        )}
+
         <div className="flex gap-3 pt-2">
           <button
             type="submit"
-            disabled={loading || products.kind === "loading"}
+            disabled={
+              loading ||
+              products.kind === "loading" ||
+              attachments.some((a) => a.error)
+            }
             className="px-5 py-2.5 bg-[#275d6b] text-white font-medium rounded-md hover:bg-[#1f4e5b] focus:outline-none focus:ring-2 focus:ring-[#275d6b]/40 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {loading ? "Creando..." : "Crear incidencia"}
+            {loading
+              ? uploadingIdx !== null
+                ? "Subiendo archivos..."
+                : "Creando..."
+              : "Crear incidencia"}
           </button>
           <button
             type="button"
