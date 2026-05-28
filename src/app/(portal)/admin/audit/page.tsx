@@ -57,16 +57,19 @@ function formatDetails(item: AuditItem): string {
     }
 
     case "user.create": {
-      const role = m.role ? ROLE_LABELS[m.role as string] || m.role : "";
-      return `Nuevo usuario (${role})`;
+      const role = m.role ? ROLE_LABELS[m.role as string] : null;
+      return role ? `Nuevo usuario (${role})` : "Nuevo usuario";
     }
 
     case "user.update": {
       const changes: string[] = [];
       if (m.isActive === false) changes.push("desactivado");
       if (m.isActive === true) changes.push("activado");
-      if (m.role) changes.push(`rol: ${ROLE_LABELS[m.role as string] || m.role}`);
+      if (m.role && ROLE_LABELS[m.role as string]) {
+        changes.push(`rol: ${ROLE_LABELS[m.role as string]}`);
+      }
       if (m.firstName || m.lastName) changes.push("datos actualizados");
+      if (m.companyId !== undefined) changes.push("empresa cambiada");
       return changes.length > 0 ? changes.join(", ") : "Datos modificados";
     }
 
