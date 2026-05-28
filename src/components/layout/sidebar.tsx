@@ -117,7 +117,7 @@ export function Sidebar({ role }: { role: Role }) {
               className={cn(
                 "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
                 isActive
-                  ? "bg-gray-100 text-gray-900"
+                  ? "bg-[#275d6b]/10 text-[#275d6b]"
                   : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
               )}
             >

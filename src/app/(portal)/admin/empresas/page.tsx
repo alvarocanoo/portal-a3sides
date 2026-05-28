@@ -1,6 +1,7 @@
 import { requireRole } from "@/lib/auth/helpers";
 import { prisma } from "@/lib/db";
 import { CreateCompanyForm } from "@/components/admin/create-company-form";
+import { Building2 } from "lucide-react";
 
 export default async function EmpresasPage() {
   await requireRole("ADMIN");
@@ -15,42 +16,51 @@ export default async function EmpresasPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Empresas</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Empresas</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {companies.length} empresa{companies.length !== 1 && "s"}
+          </p>
+        </div>
         <CreateCompanyForm />
       </div>
 
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         {companies.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
-            No hay empresas registradas.
+          <div className="p-12 text-center">
+            <Building2 className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+            <p className="text-gray-500 mb-1">No hay empresas</p>
+            <p className="text-sm text-gray-400">
+              Crea la primera empresa o impórtala desde iRecursos
+            </p>
           </div>
         ) : (
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Nombre
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   CIF/NIF
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   ID iRecursos
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Usuarios
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Incidencias
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Estado
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-gray-100">
               {companies.map((company) => (
-                <tr key={company.id} className="hover:bg-gray-50">
+                <tr key={company.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3 text-sm font-medium text-gray-900">
                     {company.name}
                   </td>
@@ -68,7 +78,7 @@ export default async function EmpresasPage() {
                   </td>
                   <td className="px-4 py-3">
                     <span
-                      className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${
+                      className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${
                         company.isActive
                           ? "bg-green-100 text-green-800"
                           : "bg-red-100 text-red-800"

@@ -49,9 +49,9 @@ export default function CambiarPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-[#f5f7f9] px-4">
       <div className="w-full max-w-md">
-        <div className="bg-white rounded-lg shadow-md p-8">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200/80 p-8">
           <div className="text-center mb-6">
             <h1 className="text-xl font-bold text-gray-900">
               Cambiar contraseña
