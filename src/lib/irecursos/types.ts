@@ -23,6 +23,12 @@ export interface IRecursosOT {
   createdAt: string;
 }
 
+export interface IRecursosContract {
+  id: string;
+  description: string;
+  state: string;
+}
+
 export interface IRecursosParte {
   id?: string;
   otId: string;
