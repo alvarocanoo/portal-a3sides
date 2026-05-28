@@ -171,6 +171,18 @@ export class IncidentService {
       updateData.resolvedAt = null;
     }
 
+    // ─── REGLA DE NEGOCIO: "Tomar incidencia" = asignarse a si mismo ───
+    // Cuando un AGENT/ADMIN pasa una incidencia de OPEN a IN_PROGRESS,
+    // se asigna automaticamente a quien pulsa. Si ya estaba asignada a
+    // otro agente, el frontend ha pedido confirmacion antes.
+    if (
+      incident.status === "OPEN" &&
+      newStatus === "IN_PROGRESS" &&
+      userRole !== "CLIENT"
+    ) {
+      updateData.assignedTo = { connect: { id: changedById } };
+    }
+
     const [updated] = await prisma.$transaction([
       prisma.incident.update({
         where: { id: incidentId },

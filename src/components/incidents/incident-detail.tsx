@@ -136,6 +136,21 @@ export function IncidentDetail({ incident, currentUser }: IncidentDetailProps) {
   }
 
   async function handleStatusChange(newStatus: string) {
+    // "Tomar incidencia" sobre una ya asignada a OTRO agente: pedir confirmacion.
+    // El caso normal (OPEN sin asignar) no preguntara nada.
+    if (
+      newStatus === "IN_PROGRESS" &&
+      incident.status === "OPEN" &&
+      incident.assignedTo &&
+      incident.assignedTo.id !== currentUser.id
+    ) {
+      const name = `${incident.assignedTo.firstName} ${incident.assignedTo.lastName}`;
+      const confirmed = window.confirm(
+        `Esta incidencia está asignada a ${name}. Tomarla te la asignará a ti. ¿Continuar?`
+      );
+      if (!confirmed) return;
+    }
+
     setStatusLoading(true);
     try {
       const res = await fetch(`/api/incidents/${incident.id}/status`, {
