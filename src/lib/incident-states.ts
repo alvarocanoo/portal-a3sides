@@ -148,7 +148,6 @@ export const CLIENT_STATUS_PSEUDO = {
 
 export const CLIENT_STATUS_OPTIONS = [
   { value: "", label: "Activas" },
-  { value: IncidentStatus.OPEN, label: "Abierta" },
   { value: CLIENT_STATUS_PSEUDO.IN_PROCESS, label: "En proceso" },
   { value: IncidentStatus.WAITING_CLIENT, label: "Esperando tu respuesta" },
   { value: CLIENT_STATUS_PSEUDO.CLOSED_GROUP, label: "Cerradas" },

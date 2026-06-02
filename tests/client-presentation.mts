@@ -189,7 +189,11 @@ eq(`"FOO" → 4 activas (defensivo)`, expandClientStatusFilter("FOO"), [
 // ────────────────────────────────────────────────────────────────────
 console.log("\n=== CLIENT_STATUS_OPTIONS ===\n");
 
-eq(`6 opciones en el dropdown del cliente`, CLIENT_STATUS_OPTIONS.length, 6);
+// "Abierta" (OPEN directo) se quitó del dropdown del cliente porque
+// confundía con "Activas" (= todo lo no cerrado, que incluye OPEN).
+// Quedan 5: Activas, En proceso, Esperando tu respuesta, Cerradas,
+// Todas (incluye cerradas).
+eq(`5 opciones en el dropdown del cliente`, CLIENT_STATUS_OPTIONS.length, 5);
 eq(`primera opción es "Activas" con value ""`, CLIENT_STATUS_OPTIONS[0], {
   value: "",
   label: "Activas",
