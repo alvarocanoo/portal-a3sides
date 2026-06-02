@@ -8,6 +8,7 @@ import {
   Hourglass,
   ExternalLink,
   CheckCheck,
+  Activity,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -20,7 +21,7 @@ import {
   statusLabelFor,
   statusClassFor,
 } from "@/lib/incident-states";
-import { formatDate } from "@/lib/constants";
+import { formatDate, formatDuration } from "@/lib/constants";
 
 // Iconos por estado — el resto (label, color, filtro) viene de STATUS_CONFIG.
 const STATUS_ICONS: Record<IncidentStatus, LucideIcon> = {
@@ -76,6 +77,85 @@ export default async function DashboardPage() {
 
   // Una tarjeta "Total" + una por cada estado, en el orden del enum.
   const statusOrder: IncidentStatus[] = Object.keys(STATUS_CONFIG) as IncidentStatus[];
+
+  // ── Métricas de tiempo SOLO para AGENT/ADMIN ────────────────────────
+  // CLIENT no ve esta sección (igual que no ve prioridad ni SLA chips).
+  // 4 métricas con el mismo `where` que las tarjetas de conteo:
+  //   1. Tiempo medio de 1ª respuesta (incidencias con firstResponseAt).
+  //   2. Tiempo medio de resolución (incidencias con resolvedAt).
+  //   3. Sin 1ª respuesta (backlog activo sin respuesta del staff).
+  //   4. Tasa de resolución = (RESOLVED + CLOSED) / total.
+  //
+  // Defensa anti-NaN/Infinity en todos los cálculos:
+  //   - Si no hay filas para promediar → null → la tarjeta muestra "—".
+  //   - Si total = 0 → tasa null → "—".
+  //   - 0% válido (información real), solo "—" cuando NO hay datos.
+  const staffMetrics =
+    role === "CLIENT"
+      ? null
+      : await (async () => {
+          const TWENTY_FOUR_HOURS_AGO = new Date(Date.now() - 24 * 60 * 60 * 1000);
+          const [respRows, resRows, noResp, noRespOver24h, doneCount] =
+            await Promise.all([
+              prisma.incident.findMany({
+                where: { ...where, firstResponseAt: { not: null } },
+                select: { createdAt: true, firstResponseAt: true },
+              }),
+              prisma.incident.findMany({
+                where: { ...where, resolvedAt: { not: null } },
+                select: { createdAt: true, resolvedAt: true },
+              }),
+              prisma.incident.count({
+                where: {
+                  ...where,
+                  firstResponseAt: null,
+                  status: { notIn: ["RESOLVED", "CLOSED"] },
+                },
+              }),
+              prisma.incident.count({
+                where: {
+                  ...where,
+                  firstResponseAt: null,
+                  status: { notIn: ["RESOLVED", "CLOSED"] },
+                  createdAt: { lt: TWENTY_FOUR_HOURS_AGO },
+                },
+              }),
+              prisma.incident.count({
+                where: { ...where, status: { in: ["RESOLVED", "CLOSED"] } },
+              }),
+            ]);
+
+          const avgFirstResp =
+            respRows.length === 0
+              ? null
+              : respRows.reduce(
+                  (s, r) =>
+                    s + (r.firstResponseAt!.getTime() - r.createdAt.getTime()),
+                  0
+                ) / respRows.length;
+
+          const avgResolution =
+            resRows.length === 0
+              ? null
+              : resRows.reduce(
+                  (s, r) =>
+                    s + (r.resolvedAt!.getTime() - r.createdAt.getTime()),
+                  0
+                ) / resRows.length;
+
+          // Tasa: null si total=0 (muestra "—") para no mostrar "0%
+          // engañoso" cuando no hay incidencias en absoluto. Con total>0,
+          // 0% es información válida (cero resueltas de N totales).
+          const resolutionRate = total === 0 ? null : doneCount / total;
+
+          return {
+            avgFirstResp,
+            avgResolution,
+            noResp,
+            noRespOver24h,
+            resolutionRate,
+          };
+        })();
 
   // ── Tarjetas agrupadas para CLIENT (4 en vez de 6) ──────────────────
   // El cliente ve 4 etiquetas (Abierta, En proceso, Esperando tu respuesta,
@@ -215,6 +295,116 @@ export default async function DashboardPage() {
               );
             })}
       </div>
+
+      {/* ── Métricas de tiempo — SOLO AGENT/ADMIN ──────────────────────
+          El CLIENT no ve nada de esta sección. staffMetrics es null para
+          CLIENT, así que el bloque no se renderiza. Los valores null
+          internos (cuando no hay datos para una métrica concreta) se
+          renderizan como "—", nunca como NaN ni Infinity. */}
+      {staffMetrics && (
+        <div className="mb-8">
+          <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+            Tiempos
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* 1) Tiempo medio de primera respuesta */}
+            <div className="bg-white rounded-lg border border-gray-200 p-5">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-md text-[#275d6b] bg-[#275d6b]/10 shrink-0">
+                  <Clock className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-2xl font-bold text-gray-900">
+                    {staffMetrics.avgFirstResp !== null
+                      ? formatDuration(staffMetrics.avgFirstResp)
+                      : "—"}
+                  </p>
+                  <p className="text-sm text-gray-500 leading-tight">
+                    Tiempo medio 1ª respuesta
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 2) Tiempo medio de resolución */}
+            <div className="bg-white rounded-lg border border-gray-200 p-5">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-md text-[#275d6b] bg-[#275d6b]/10 shrink-0">
+                  <CheckCircle2 className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-2xl font-bold text-gray-900">
+                    {staffMetrics.avgResolution !== null
+                      ? formatDuration(staffMetrics.avgResolution)
+                      : "—"}
+                  </p>
+                  <p className="text-sm text-gray-500 leading-tight">
+                    Tiempo medio resolución
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 3) Sin 1ª respuesta — backlog. Si hay alguna que lleva
+                 > 24h, todo el bloque se resalta en ámbar (aviso de
+                 atención requerida) en vez de gris. */}
+            <div
+              className={cn(
+                "rounded-lg border p-5",
+                staffMetrics.noRespOver24h > 0
+                  ? "bg-amber-50 border-amber-200"
+                  : "bg-white border-gray-200"
+              )}
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className={cn(
+                    "p-2 rounded-md shrink-0",
+                    staffMetrics.noRespOver24h > 0
+                      ? "text-amber-700 bg-amber-100"
+                      : "text-[#275d6b] bg-[#275d6b]/10"
+                  )}
+                >
+                  <Hourglass className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-2xl font-bold text-gray-900">
+                    {staffMetrics.noResp}
+                  </p>
+                  <p className="text-sm text-gray-500 leading-tight">
+                    Sin 1ª respuesta
+                    {staffMetrics.noRespOver24h > 0 && (
+                      <span className="block text-xs text-amber-700 mt-0.5">
+                        {staffMetrics.noRespOver24h} lleva
+                        {staffMetrics.noRespOver24h === 1 ? "" : "n"} {">"}24h
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* 4) Tasa de resolución — % o "—" si total=0. */}
+            <div className="bg-white rounded-lg border border-gray-200 p-5">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-md text-[#275d6b] bg-[#275d6b]/10 shrink-0">
+                  <Activity className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-2xl font-bold text-gray-900">
+                    {staffMetrics.resolutionRate !== null
+                      ? `${Math.round(staffMetrics.resolutionRate * 100)}%`
+                      : "—"}
+                  </p>
+                  <p className="text-sm text-gray-500 leading-tight">
+                    Tasa de resolución
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-lg border border-gray-200">
         <div className="px-5 py-4 border-b border-gray-200 flex items-center justify-between">
