@@ -47,7 +47,13 @@ export default function NuevaIncidenciaPage() {
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return;
-        if (data.source === "irecursos" && Array.isArray(data.contracts)) {
+        // Tanto "irecursos" (recién traídos) como "cache" (servidos desde
+        // la caché interna por TTL) son fuentes VÁLIDAS de contratos.
+        // Solo "fallback" indica que hay que mostrar la lista estática.
+        if (
+          (data.source === "irecursos" || data.source === "cache") &&
+          Array.isArray(data.contracts)
+        ) {
           const options = data.contracts.map(
             (c: { description: string }) => c.description
           );
