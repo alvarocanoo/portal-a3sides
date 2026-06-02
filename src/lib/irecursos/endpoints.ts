@@ -3,6 +3,7 @@ const BASE = process.env.IRECURSOS_BASE_URL || "https://a3sides.irecursos.net/ad
 export const ENDPOINTS = {
   login: `${BASE}/es/index.php`,
   validate: `${BASE}/es/validar.php`,
+  logout: `${BASE}/es/logout.php`,
   clientPanel: `${BASE}/es/A-clients-panell.php`,
   otDetail: (id: string) => `${BASE}/es/A-ot.php?id=${id}`,
   otNew: `${BASE}/es/A-ot.php`,

@@ -21,7 +21,10 @@
  */
 
 import { prisma as realPrisma } from "@/lib/db";
-import { fetchClientsPage } from "@/lib/irecursos/client";
+import {
+  fetchClientsPage,
+  logoutIRecursos,
+} from "@/lib/irecursos/client";
 import { sendEmail as realSendEmail } from "@/lib/email";
 import { userInvitation } from "@/lib/email/templates";
 import { UserService } from "@/services/user.service";
@@ -80,6 +83,9 @@ export interface BulkImportDeps {
   audit?: typeof AuditService.log;
   sleep?: (ms: number) => Promise<void>;
   now?: () => number;
+  // Inyectable para tests (mock no-op). En producción es el real
+  // `logoutIRecursos` que cierra la sesión en iRecursos.
+  logout?: () => Promise<void>;
 }
 
 const SAMPLE_ISSUES_MAX = 20;
@@ -118,6 +124,7 @@ export async function bulkImportFromIRecursos(
     audit = AuditService.log.bind(AuditService),
     sleep = defaultSleep,
     now = Date.now,
+    logout = logoutIRecursos,
   } = deps;
 
   // ── Validación de opciones ──────────────────────────────────────────
@@ -282,6 +289,14 @@ export async function bulkImportFromIRecursos(
     stats.stoppedReason = "page-fetch-error";
     stats.stopError = err instanceof Error ? err.message : String(err);
     throw err;
+  } finally {
+    // SIEMPRE cerrar la sesión de iRecursos al terminar, pase lo que
+    // pase (éxito, error de página, excepción de BD, lo que sea).
+    // iRecursos limita las sesiones concurrentes y NO las cierra solo;
+    // dejarlas abiertas consume slots de licencia y nos bloquea el
+    // siguiente uso. `logout` es tolerante a fallos (no relanza), así
+    // que este `await` no puede romper el flujo del caller.
+    await logout();
   }
 }
 

@@ -526,3 +526,69 @@ export async function getHealthStatus(): Promise<{
 export function invalidateSession(): void {
   cachedSession = null;
 }
+
+/**
+ * Cierra ACTIVAMENTE la sesión en iRecursos. iRecursos limita las sesiones
+ * concurrentes por usuario y NO las expira solas en tiempo razonable:
+ * si el portal no cierra explícitamente, la sesión queda "fantasma" en
+ * el servidor consumiendo un slot del límite. Esto es lo que pasaba
+ * antes del fix — `invalidateSession()` solo limpia la cookie en
+ * memoria local pero NO le dice a iRecursos que cierre.
+ *
+ * Diseño:
+ *   - Si no hay sesión cacheada, NO HACE NADA (sin sesión no hay nada
+ *     que cerrar — y llamar al endpoint con cookies vacías sería ruido).
+ *   - GET a ENDPOINTS.logout con las cookies de la sesión actual.
+ *   - TOLERANTE A FALLOS: si la llamada falla (red, timeout, iRecursos
+ *     caído, lo que sea), se registra con console.error y se SIGUE.
+ *     El objetivo es "intentar siempre", NO "fallar la importación si
+ *     iRecursos no responde al logout".
+ *   - SIEMPRE limpia la cookie cacheada en memoria al final, haya ido
+ *     bien o mal — porque cualquier siguiente llamada con esa cookie
+ *     probablemente fallaría (ya cerrada o en estado inconsistente).
+ */
+export async function logoutIRecursos(): Promise<void> {
+  if (!cachedSession) {
+    // Sin sesión cacheada no hay sesión que cerrar en iRecursos desde
+    // este proceso. Silencioso a propósito.
+    return;
+  }
+
+  const session = cachedSession;
+  // Capturamos cookies ANTES de limpiar memoria; el finally limpia.
+  const cookieHeader = `PHPSESSID=${session.phpSessionId}; ILEHD_SESSION=${session.ilehdSession}`;
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), TIMEOUT);
+    try {
+      const res = await fetch(ENDPOINTS.logout, {
+        method: "GET",
+        headers: {
+          Cookie: cookieHeader,
+          "User-Agent": USER_AGENT,
+        },
+        redirect: "manual", // logout suele redirigir al login; no la seguimos
+        signal: controller.signal,
+      });
+      // iRecursos devuelve 302 (redirect a index.php) o 200 al hacer
+      // logout. Cualquier código <500 lo consideramos "intentado OK".
+      const ok = res.status < 500;
+      console.log(
+        `[iRecursos] Logout ${ok ? "OK" : "respondió " + res.status} — sesión cerrada en servidor`
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
+  } catch (err) {
+    // Tolerancia: NO propagamos. Solo logueamos para diagnóstico.
+    console.error(
+      `[iRecursos] Logout falló (red/timeout/etc): ${err instanceof Error ? err.message : String(err)} — la sesión podría quedar abierta en iRecursos hasta su timeout. Limpiando cookie local de todas formas.`
+    );
+  } finally {
+    // Limpiar SIEMPRE la cookie cacheada, fuese cual fuese el resultado
+    // de la llamada HTTP. Cualquier reuso de esa cookie a partir de aquí
+    // sería incorrecto (sesión cerrada o estado indeterminado).
+    invalidateSession();
+  }
+}

@@ -94,6 +94,7 @@ interface CallRegistry {
   sendEmail: { to: string; subject: string }[];
   audit: unknown[];
   sleep: number[];
+  logout: number; // veces que se invocó (debe ser 1 al final)
 }
 
 interface MockDb {
@@ -125,6 +126,7 @@ function makeDeps(opts: {
     sendEmail: [],
     audit: [],
     sleep: [],
+    logout: 0,
   };
 
   const db: MockDb = {
@@ -261,6 +263,10 @@ function makeDeps(opts: {
     return nowCounter;
   };
 
+  const logout = async () => {
+    calls.logout += 1;
+  };
+
   return {
     deps: {
       fetchPage: wrappedFetchPage,
@@ -270,6 +276,7 @@ function makeDeps(opts: {
       audit,
       sleep,
       now,
+      logout,
     },
     calls,
     db,
@@ -735,6 +742,51 @@ await test("errores de parsing en página → reportados pero no abortan", async
     "sampleIssues incluye parse-error",
     stats.sampleIssues.some((s) => s.kind === "parse-error")
   );
+});
+
+// ──────────────────────────────────────────────────────────────────────
+// Logout SIEMPRE se llama al final (try/finally)
+//
+// El servicio envuelve toda la importación en try/finally, de forma que
+// `logoutIRecursos()` se invoca al terminar pase lo que pase. Esto cierra
+// la sesión en iRecursos (limitado por número de sesiones concurrentes
+// que no expiran solas).
+// ──────────────────────────────────────────────────────────────────────
+
+await test("logout se llama UNA vez tras importación exitosa", async () => {
+  const page = mkPage([mkClient({ codcli: "1", email: "x@x.test" })], 1);
+  const { deps, calls } = makeDeps({ pages: [page] });
+
+  await bulkImportFromIRecursos(defaultOptions({ maxPages: 1 }), deps);
+
+  eq("logout invocado exactamente 1 vez", calls.logout, 1);
+});
+
+await test("logout se llama tras fallo de página (camino catch)", async () => {
+  const { deps, calls } = makeDeps({
+    pages: [],
+    fetchPageFn: async () => {
+      throw new Error("IRECURSOS_BAD_RESPONSE");
+    },
+  });
+
+  const stats = await bulkImportFromIRecursos(defaultOptions({ maxPages: 1 }), deps);
+
+  eq("logout invocado 1 vez tras page-fetch-error", calls.logout, 1);
+  eq("stoppedReason refleja el fallo", stats.stoppedReason, "page-fetch-error");
+});
+
+await test("validación falla ANTES del try → logout NO se llama", async () => {
+  const { deps, calls } = makeDeps({ pages: [] });
+  try {
+    await bulkImportFromIRecursos(defaultOptions({ maxPages: 0 }), deps);
+  } catch {
+    // esperado: MAX_PAGES_INVALID
+  }
+  // El throw es ANTES del try { ... } finally { logout() }, así que
+  // logout NO debe ejecutarse: no hay sesión iRecursos abierta tampoco
+  // (nunca se llegó a llamar a fetchPage).
+  eq("logout NO se llama si la validación rechaza", calls.logout, 0);
 });
 
 // ──────────────────────────────────────────────────────────────────────
