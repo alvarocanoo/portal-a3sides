@@ -1,17 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import type { Role } from "@prisma/client";
 import { cn } from "@/lib/utils";
-import { MessageSquare, Lock, Paperclip, ArrowLeft, AlertCircle } from "lucide-react";
+import { MessageSquare, Lock, Paperclip, ArrowLeft, AlertCircle, Clock, CheckCircle2, Hourglass } from "lucide-react";
 import Link from "next/link";
 import {
   statusLabelFor,
   statusClassFor,
   VALID_TRANSITIONS,
 } from "@/lib/incident-states";
-import { PRIORITY_CONFIG, ROLE_LABELS, formatDateTime } from "@/lib/constants";
+import { PRIORITY_CONFIG, ROLE_LABELS, formatDateTime, formatDuration } from "@/lib/constants";
 import { FileUploader, type PendingFile } from "@/components/incidents/file-uploader";
 import { ImageLightbox } from "@/components/incidents/image-lightbox";
 import { uploadAttachment } from "@/lib/upload";
@@ -28,6 +28,11 @@ interface IncidentDetailProps {
     priority: string;
     category: string | null;
     createdAt: Date;
+    // Tiempos para los chips de SLA (solo se muestran a AGENT/ADMIN).
+    // getById ya los devuelve (Prisma findUnique con include sin select).
+    firstResponseAt: Date | null;
+    resolvedAt: Date | null;
+    closedAt: Date | null;
     company: { id: string; name: string };
     createdBy: {
       id: string;
@@ -567,6 +572,20 @@ export function IncidentDetail({
           </div>
         )}
 
+        {/* Chips de SLA — SOLO AGENT/ADMIN. El CLIENT no ve métricas
+            internas de tiempos (mismo criterio que con la prioridad).
+            slaNow se calcula UNA sola vez al montar (useMemo) para
+            evitar re-renders en bucle por cambios de Date.now(). Si el
+            usuario quiere el reloj actualizado, refresca la página. */}
+        {currentUser.role !== "CLIENT" && (
+          <SlaChips
+            createdAt={incident.createdAt}
+            firstResponseAt={incident.firstResponseAt}
+            resolvedAt={incident.resolvedAt}
+            closedAt={incident.closedAt}
+          />
+        )}
+
         {/* Acciones de estado — generadas dinámicamente desde VALID_TRANSITIONS.
             Si availableTransitions es vacío (CLOSED, o rol sin transiciones
             posibles desde el estado actual), no se pinta el separador ni la
@@ -733,6 +752,98 @@ export function IncidentDetail({
           alt={lightbox.fileName}
           onClose={() => setLightbox(null)}
         />
+      )}
+    </div>
+  );
+}
+
+// ── Chips de SLA (interno, no exportado) ────────────────────────────
+// Renderiza tres indicadores compactos en el header del detalle. Lógica:
+//   - 1ª respuesta: si firstResponseAt → verde. Si null → ámbar (gris si
+//     lleva poco abierta, ámbar si lleva >24h sin respuesta).
+//   - Resolución: si resolvedAt → verde. Si closedAt sin resolvedAt → gris
+//     (cerrada sin pasar por resolución). Si nada → no se muestra.
+//   - Abierta: si NO está cerrada ni resuelta, muestra cuánto lleva. Si
+//     supera 24h sin 1ª respuesta, se resalta en ámbar como aviso SLA.
+//
+// `now` se calcula UNA vez con useMemo([]) — no se actualiza cada
+// segundo. Refrescar la página renueva el cálculo. Esto evita cualquier
+// posibilidad de re-render en bucle por Date.now().
+const UMBRAL_ALERTA_MS = 24 * 60 * 60 * 1000; // 24h
+
+function SlaChips({
+  createdAt,
+  firstResponseAt,
+  resolvedAt,
+  closedAt,
+}: {
+  createdAt: Date;
+  firstResponseAt: Date | null;
+  resolvedAt: Date | null;
+  closedAt: Date | null;
+}) {
+  const now = useMemo(() => Date.now(), []);
+  const createdMs = new Date(createdAt).getTime();
+  const elapsedOpenMs = now - createdMs;
+  const isClosedOrResolved = resolvedAt !== null || closedAt !== null;
+
+  return (
+    <div className="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-center gap-2">
+      <span className="text-xs text-gray-400 uppercase tracking-wider mr-1">SLA</span>
+
+      {/* Chip 1: tiempo hasta primera respuesta */}
+      {firstResponseAt ? (
+        <span
+          className={cn(
+            "inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded-md border",
+            "bg-emerald-50 text-emerald-700 border-emerald-200"
+          )}
+        >
+          <Clock className="h-3 w-3" />
+          1ª respuesta en {formatDuration(createdAt, firstResponseAt)}
+        </span>
+      ) : (
+        <span
+          className={cn(
+            "inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded-md border",
+            elapsedOpenMs > UMBRAL_ALERTA_MS
+              ? "bg-amber-50 text-amber-700 border-amber-200"
+              : "bg-gray-50 text-gray-600 border-gray-200"
+          )}
+        >
+          <Clock className="h-3 w-3" />
+          Pendiente de 1ª respuesta
+        </span>
+      )}
+
+      {/* Chip 2: tiempo de resolución (solo si resolvedAt). Si solo hay
+          closedAt sin resolvedAt, lo mostramos como "Cerrada en X". */}
+      {resolvedAt ? (
+        <span className="inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded-md border bg-emerald-50 text-emerald-700 border-emerald-200">
+          <CheckCircle2 className="h-3 w-3" />
+          Resuelta en {formatDuration(createdAt, resolvedAt)}
+        </span>
+      ) : closedAt ? (
+        <span className="inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded-md border bg-gray-50 text-gray-600 border-gray-200">
+          <CheckCircle2 className="h-3 w-3" />
+          Cerrada en {formatDuration(createdAt, closedAt)}
+        </span>
+      ) : null}
+
+      {/* Chip 3: tiempo abierta — solo si NO está resuelta ni cerrada.
+          Si supera 24h sin 1ª respuesta, en ámbar. */}
+      {!isClosedOrResolved && (
+        <span
+          className={cn(
+            "inline-flex items-center gap-1.5 px-2 py-1 text-xs rounded-md border",
+            elapsedOpenMs > UMBRAL_ALERTA_MS && !firstResponseAt
+              ? "bg-amber-50 text-amber-700 border-amber-200"
+              : "bg-gray-50 text-gray-600 border-gray-200"
+          )}
+        >
+          <Hourglass className="h-3 w-3" />
+          Abierta {formatDuration(elapsedOpenMs)}
+        </span>
       )}
     </div>
   );
