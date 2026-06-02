@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { requireAuth } from "@/lib/auth/helpers";
 import { IncidentService } from "@/services/incident.service";
 import Link from "next/link";
@@ -62,12 +63,23 @@ export default async function IncidenciasPage({
         )}
       </div>
 
-      <IncidentFilters
-        role={session.user.role}
-        currentStatus={params.status}
-        currentPriority={params.priority}
-        currentSearch={params.search}
-      />
+      {/* Suspense boundary obligatorio: IncidentFilters usa useSearchParams,
+          que en Next.js 15 con App Router puede causar un BUCLE de fetches
+          RSC al navegar (sin error de consola, página colgada) cuando el
+          árbol tiene también un loading.tsx (segment Suspense del portal
+          layout). Darle al filtro su PROPIO boundary rompe esa
+          interacción. Ver:
+          https://nextjs.org/docs/messages/missing-suspense-with-csr-bailout
+          fallback={null} → no se ve nada extra mientras hidrata (el
+          filter monta en ms, no hace fetch). */}
+      <Suspense fallback={null}>
+        <IncidentFilters
+          role={session.user.role}
+          currentStatus={params.status}
+          currentPriority={params.priority}
+          currentSearch={params.search}
+        />
+      </Suspense>
 
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         {result.items.length === 0 ? (
