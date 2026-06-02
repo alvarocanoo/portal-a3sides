@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, X, Copy, Check } from "lucide-react";
+import { apiFetch } from "@/lib/api-fetch";
 
 interface Props {
   companies: { id: string; name: string }[];
@@ -20,7 +21,10 @@ export function CreateUserForm({ companies }: Props) {
   const [error, setError] = useState("");
   const [createdUser, setCreatedUser] = useState<{
     email: string;
-    tempPassword: string;
+    emailSent: boolean;
+    // Solo presente como respaldo si el email NO se envió. Cuando el email
+    // llega, no exponemos la contraseña por pantalla (camino feliz).
+    tempPassword: string | null;
   } | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -30,7 +34,7 @@ export function CreateUserForm({ companies }: Props) {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/users", {
+      const res = await apiFetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -51,7 +55,8 @@ export function CreateUserForm({ companies }: Props) {
       const data = await res.json();
       setCreatedUser({
         email: data.user.email,
-        tempPassword: data.tempPassword,
+        emailSent: data.emailSent,
+        tempPassword: data.tempPassword ?? null,
       });
     } catch {
       setError("Error de conexión");
@@ -74,7 +79,7 @@ export function CreateUserForm({ companies }: Props) {
   }
 
   async function handleCopy() {
-    if (!createdUser) return;
+    if (!createdUser?.tempPassword) return;
     await navigator.clipboard.writeText(
       `Email: ${createdUser.email}\nContraseña temporal: ${createdUser.tempPassword}`
     );
@@ -111,37 +116,59 @@ export function CreateUserForm({ companies }: Props) {
 
         {createdUser ? (
           <div className="p-4">
-            <div className="bg-green-50 border border-green-200 rounded-md p-4 mb-4">
-              <p className="text-sm text-green-800 font-medium mb-2">
-                Usuario creado correctamente
-              </p>
-              <div className="text-sm text-green-700 space-y-1">
-                <p>
-                  Email: <strong>{createdUser.email}</strong>
+            {createdUser.emailSent ? (
+              // Camino feliz: el email se envió, no exponemos contraseña.
+              <div className="bg-green-50 border border-green-200 rounded-md p-4 mb-4">
+                <p className="text-sm text-green-800 font-medium mb-2">
+                  Usuario creado correctamente
                 </p>
-                <p>
-                  Contraseña temporal:{" "}
-                  <strong className="font-mono">
-                    {createdUser.tempPassword}
-                  </strong>
+                <p className="text-sm text-green-700">
+                  Se ha enviado un email de invitación a{" "}
+                  <strong>{createdUser.email}</strong> con las instrucciones de
+                  acceso y la contraseña temporal.
+                </p>
+                <p className="text-xs text-green-600 mt-2">
+                  El usuario deberá cambiar la contraseña en su primer acceso.
                 </p>
               </div>
-              <p className="text-xs text-green-600 mt-2">
-                El usuario deberá cambiar la contraseña en su primer acceso.
-              </p>
-            </div>
+            ) : (
+              // Fallback: el email no se envió, mostramos la contraseña para
+              // que el admin pueda comunicarla manualmente por canal seguro.
+              <div className="bg-amber-50 border border-amber-200 rounded-md p-4 mb-4">
+                <p className="text-sm text-amber-800 font-medium mb-2">
+                  Usuario creado, pero el email de invitación no pudo enviarse
+                </p>
+                <div className="text-sm text-amber-700 space-y-1">
+                  <p>
+                    Email: <strong>{createdUser.email}</strong>
+                  </p>
+                  <p>
+                    Contraseña temporal:{" "}
+                    <strong className="font-mono">
+                      {createdUser.tempPassword}
+                    </strong>
+                  </p>
+                </div>
+                <p className="text-xs text-amber-700 mt-2">
+                  Comunícale estas credenciales por un canal seguro. El usuario
+                  deberá cambiar la contraseña en su primer acceso.
+                </p>
+              </div>
+            )}
             <div className="flex justify-end gap-2">
-              <button
-                onClick={handleCopy}
-                className="inline-flex items-center gap-1 px-3 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
-              >
-                {copied ? (
-                  <Check className="h-4 w-4 text-green-600" />
-                ) : (
-                  <Copy className="h-4 w-4" />
-                )}
-                {copied ? "Copiado" : "Copiar credenciales"}
-              </button>
+              {createdUser.tempPassword && (
+                <button
+                  onClick={handleCopy}
+                  className="inline-flex items-center gap-1 px-3 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  {copied ? (
+                    <Check className="h-4 w-4 text-green-600" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                  {copied ? "Copiado" : "Copiar credenciales"}
+                </button>
+              )}
               <button
                 onClick={handleClose}
                 className="px-3 py-2 text-sm bg-[#275d6b] text-white rounded-md hover:bg-[#1f4e5b]"

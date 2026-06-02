@@ -1,3 +1,19 @@
+// ====================================================================
+// AVISO: ESTE TEST DISPARA LLAMADAS REALES A iRecursos
+// --------------------------------------------------------------------
+// El endpoint /api/irecursos/client-products consulta iRecursos por
+// dentro. Cada request de este test => 1 llamada real a iRecursos.
+// iRecursos limita las sesiones concurrentes por usuario; saturarlas
+// bloquea el acceso real al portal (incluido el navegador del usuario)
+// y puede requerir intervencion manual del proveedor para liberarlas.
+//
+// Antes de ejecutar:
+//   - Confirma con el usuario que es necesario y que da el OK.
+//   - Limita el numero de invocaciones al minimo imprescindible.
+//   - No ejecutes en bucle ni reintentes automaticamente si falla.
+//   - Tras la ejecucion, no relances "para volver a comprobar".
+// ====================================================================
+
 // Test de aislamiento del endpoint /api/irecursos/client-products
 // Verifica que un CLIENT no puede consultar contratos de otra empresa
 // manipulando el parametro CODCLI.

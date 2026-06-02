@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { PRIORITY_OPTIONS } from "@/lib/constants";
 import { FileUploader, type PendingFile } from "@/components/incidents/file-uploader";
 import { uploadAttachment } from "@/lib/upload";
+import { apiFetch } from "@/lib/api-fetch";
 
 const STATIC_CATEGORIES = [
   "a3FacturaGo",
@@ -14,8 +14,6 @@ const STATIC_CATEGORIES = [
   "INNUVA ERP",
   "Otro",
 ];
-
-const PRIORITIES = PRIORITY_OPTIONS.filter((p) => p.value !== "");
 
 type ProductsState =
   | { kind: "loading" }
@@ -35,7 +33,6 @@ export default function NuevaIncidenciaPage() {
   const router = useRouter();
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
-  const [priority, setPriority] = useState("MEDIUM");
   const [category, setCategory] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -89,10 +86,10 @@ export default function NuevaIncidenciaPage() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/incidents", {
+      const res = await apiFetch("/api/incidents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subject, description, priority, category }),
+        body: JSON.stringify({ subject, description, category }),
       });
 
       if (!res.ok) {
@@ -195,62 +192,39 @@ export default function NuevaIncidenciaPage() {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label
-                htmlFor="category"
-                className="block text-sm font-medium text-gray-700"
-              >
-                Producto
-              </label>
-              {products.kind === "loading" && (
-                <span className="inline-flex items-center gap-1.5 text-xs text-gray-400">
-                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-gray-200 border-t-[#275d6b]" />
-                  Cargando…
-                </span>
-              )}
-            </div>
-            <select
-              id="category"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              disabled={products.kind === "loading"}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#275d6b]/40 focus:border-[#275d6b] disabled:opacity-60 disabled:cursor-wait"
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label
+              htmlFor="category"
+              className="block text-sm font-medium text-gray-700"
             >
-              <option value="">Seleccionar…</option>
-              {products.kind !== "loading" &&
-                products.options.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {opt}
-                  </option>
-                ))}
-            </select>
-            {fallbackMsg && (
-              <p className="mt-1.5 text-xs text-gray-500">{fallbackMsg}</p>
+              Producto
+            </label>
+            {products.kind === "loading" && (
+              <span className="inline-flex items-center gap-1.5 text-xs text-gray-400">
+                <span className="h-3 w-3 animate-spin rounded-full border-2 border-gray-200 border-t-[#275d6b]" />
+                Cargando…
+              </span>
             )}
           </div>
-
-          <div>
-            <label
-              htmlFor="priority"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Prioridad
-            </label>
-            <select
-              id="priority"
-              value={priority}
-              onChange={(e) => setPriority(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#275d6b]/40 focus:border-[#275d6b]"
-            >
-              {PRIORITIES.map((p) => (
-                <option key={p.value} value={p.value}>
-                  {p.label}
+          <select
+            id="category"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            disabled={products.kind === "loading"}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-[#275d6b]/40 focus:border-[#275d6b] disabled:opacity-60 disabled:cursor-wait"
+          >
+            <option value="">Seleccionar…</option>
+            {products.kind !== "loading" &&
+              products.options.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
                 </option>
               ))}
-            </select>
-          </div>
+          </select>
+          {fallbackMsg && (
+            <p className="mt-1.5 text-xs text-gray-500">{fallbackMsg}</p>
+          )}
         </div>
 
         <div>

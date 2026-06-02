@@ -3,6 +3,8 @@ import { auth } from "@/lib/auth";
 import { UserService } from "@/services/user.service";
 import { AuditService } from "@/services/audit.service";
 import { createUserSchema } from "@/lib/validators/user";
+import { sendEmail } from "@/lib/email";
+import { userInvitation } from "@/lib/email/templates";
 
 export async function GET(request: Request) {
   try {
@@ -53,7 +55,34 @@ export async function POST(request: Request) {
       metadata: { email: user.email, role: user.role },
     });
 
-    return NextResponse.json({ user, tempPassword }, { status: 201 });
+    // ── Envío del email de invitación con la contraseña temporal ────────
+    // Se hace de forma SÍNCRONA (no fire-and-forget) para poder decidir qué
+    // devolver al admin: si el email se envió, no exponemos la contraseña en
+    // la respuesta — el usuario la recibe directamente por su bandeja. Si el
+    // envío falla, devolvemos tempPassword como respaldo para que el admin
+    // pueda comunicársela manualmente (canal seguro) y la cuenta no quede
+    // inaccesible.
+    // ────────────────────────────────────────────────────────────────────
+    const invitation = userInvitation({
+      firstName: user.firstName,
+      email: user.email,
+      tempPassword,
+    });
+    const emailSent = await sendEmail({
+      to: user.email,
+      subject: invitation.subject,
+      html: invitation.html,
+    });
+
+    return NextResponse.json(
+      {
+        user,
+        emailSent,
+        // Solo devolvemos tempPassword si el email falló (fallback admin).
+        tempPassword: emailSent ? null : tempPassword,
+      },
+      { status: 201 }
+    );
   } catch (error) {
     if (error instanceof Error) {
       if (error.message === "EMAIL_ALREADY_EXISTS") {

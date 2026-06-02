@@ -40,6 +40,15 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|public).*)",
+    // Excluimos:
+    //   _next/static, _next/image, favicon.ico → assets internos de Next.
+    //   .*\..* → cualquier ruta con extension (logoa3sides.png, logo.svg,
+    //   robots.txt, etc.). Sin esto, el middleware redirige los estaticos
+    //   de /public a /login cuando el usuario no esta autenticado, y el
+    //   navegador recibe HTML donde esperaba binario → imagen rota.
+    //
+    //   OJO: "public" como token aqui era inutil porque Next sirve los
+    //   ficheros de /public en la raiz (/logoa3sides.png, no /public/...).
+    "/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)",
   ],
 };

@@ -7,6 +7,10 @@ import {
   createIncidentSchema,
   listIncidentsQuerySchema,
 } from "@/lib/validators/incident";
+import {
+  expandClientStatusFilter,
+  expandStaffStatusFilter,
+} from "@/lib/incident-states";
 
 export async function GET(request: Request) {
   try {
@@ -27,10 +31,25 @@ export async function GET(request: Request) {
       );
     }
 
+    // El `status` del query es un pseudo-valor o un estado real. Lo
+    // expandimos según rol:
+    //   CLIENT → expandClientStatusFilter (4 etiquetas agrupadas + ALL).
+    //   AGENT/ADMIN → expandStaffStatusFilter (estados reales + ALL;
+    //     tolera pseudos del CLIENT si llegan por URL compartida → cierra
+    //     el bug A2 de HTTP 500).
+    // En ambos roles, sin status = Activas (oculta cerradas).
+    // CLIENT tampoco ve prioridad: ignoramos cualquier ?priority= que llegue.
+    const isClient = session.user.role === "CLIENT";
     const result = await IncidentService.list({
       ...query.data,
+      status: isClient
+        ? expandClientStatusFilter(query.data.status)
+        : expandStaffStatusFilter(query.data.status),
+      priority: isClient ? undefined : query.data.priority,
       role: session.user.role,
       companyId: session.user.companyId ?? undefined,
+      clientOrder: isClient,
+      staffOrder: !isClient,
     });
 
     return NextResponse.json(result);

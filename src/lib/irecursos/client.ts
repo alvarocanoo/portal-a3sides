@@ -1,7 +1,11 @@
 import { ENDPOINTS } from "./endpoints";
+import { IRecursosError } from "./errors";
+import {
+  parseModalClientsTable,
+  type ParseResult as ModalClientsParseResult,
+} from "./parse-modal-clients";
 import type {
   IRecursosSession,
-  IRecursosClient,
   IRecursosContract,
   XJXResponse,
 } from "./types";
@@ -31,6 +35,77 @@ function buildLoginArgs(user: string, password: string): string {
     `<e><k>empresa</k><v>S</v></e>` +
     `<e><k>hp_check</k><v>S</v></e>` +
     `</xjxobj>`
+  );
+}
+
+/**
+ * Errores SIEMPRE fatales en cualquier respuesta de iRecursos, sea HTML
+ * o XJX: PHP exception, sesion caducada, sin permisos, redirect de
+ * "cierra sesiones previas". Devuelve mensaje descriptivo o null.
+ */
+function detectIrecursosFatalError(body: string): string | null {
+  if (body.length === 0) return "Respuesta vacia de iRecursos";
+
+  if (body.includes("Fatal error") || body.includes("Uncaught")) {
+    const m = body.match(/Uncaught\s+\w+(?:Error)?[^<\n:]*[:\s]*[^<\n]*/);
+    return `Error PHP en iRecursos: ${(m?.[0] || "Fatal error").slice(0, 200)}`;
+  }
+
+  if (body.includes("caducado") || body.includes("Debe validarse de nuevo")) {
+    return "Sesion de iRecursos caducada";
+  }
+
+  if (body.includes("No tiene permisos")) {
+    return "Sin permisos en iRecursos para esta operacion";
+  }
+
+  if (body.includes("tancasessions") && body.includes("redirect")) {
+    return "iRecursos pide cerrar sesiones previas del usuario";
+  }
+
+  return null;
+}
+
+/**
+ * Decide qué HTML pasar al parser de modal_clients, según el formato de
+ * respuesta de iRecursos. Hipótesis confirmada en prueba real:
+ *   - `A-imprimir-llistat-embded.php?mf_format=7` devuelve la TABLA HTML
+ *     DIRECTAMENTE, sin envoltorio XJX.
+ *   - Salvaguarda: si por cualquier razón viniera envuelta en XJX (otra
+ *     URL, cambio del backend), buscamos el CMD MODAL_CLIENTS_TAULA y
+ *     usamos su valor.
+ *
+ * Pre-condición: el caller ya descartó errores fatales con
+ * `detectIrecursosFatalError`.
+ *
+ * Exportada para poder testear el routing sin tocar red ni iRecursos.
+ */
+export function selectModalClientsHtml(body: string): string {
+  const looksLikeXjx = body.includes("<xjx>") || body.includes("<?xml");
+
+  if (looksLikeXjx) {
+    const parsed = parseXjxResponse(body);
+    const tableCmd = parsed.commands.find(
+      (c) => c.id === "MODAL_CLIENTS_TAULA"
+    );
+    if (!tableCmd?.value) {
+      throw new IRecursosError(
+        `Respuesta XJX sin MODAL_CLIENTS_TAULA: ${body.slice(0, 120)}`,
+        "IRECURSOS_BAD_RESPONSE"
+      );
+    }
+    return tableCmd.value;
+  }
+
+  // No es XJX: debe ser HTML directo con una tabla. Aceptamos cualquier
+  // <table> — el parser ya valida la estructura interna (tbody, 7 td, etc).
+  if (/<table\b/i.test(body)) {
+    return body;
+  }
+
+  throw new IRecursosError(
+    `Respuesta no reconocida (ni XJX ni HTML con tabla): ${body.slice(0, 120)}`,
+    "IRECURSOS_BAD_RESPONSE"
   );
 }
 
@@ -200,47 +275,6 @@ async function login(): Promise<IRecursosSession> {
   return cachedSession;
 }
 
-export async function searchClient(query: string): Promise<IRecursosClient[]> {
-  const body = buildXjxBody("clients_accio", [`S${query}`]);
-
-  const res = await fetchWithSession(ENDPOINTS.clientSearch, {
-    method: "POST",
-    body,
-  });
-
-  const xml = await res.text();
-  const parsed = parseXjxResponse(xml);
-
-  const clients: IRecursosClient[] = [];
-
-  const htmlCmd = parsed.commands.find((c) => c.id === "codcli_resum");
-  if (htmlCmd?.value) {
-    const codcliMatch = parsed.commands.find((c) => c.id === "CODCLI");
-    const nomcliMatch = parsed.commands.find((c) => c.id === "NOMCLI");
-
-    if (codcliMatch && nomcliMatch) {
-      const html = htmlCmd.value;
-      const nifMatch = html.match(/NIF\/CIF:<\/span>\s*([^\s<]+)/);
-      const phoneMatch = html.match(/TELÉFONO:<\/span>\s*([^\s<]+)/i) ||
-        html.match(/TELÃ‰FONO:<\/span>\s*([^\s<]+)/);
-      const emailMatch = html.match(/EMAIL:<\/span>\s*([^\s<]+)/);
-      const addressMatch = html.match(/DIRECCIÓN:<\/span>\s*([^<]+)/i) ||
-        html.match(/DIRECCIÃ"N:<\/span>\s*([^<]+)/);
-
-      clients.push({
-        codcli: codcliMatch.value?.replace(/^S/, "").trim() || "",
-        name: nomcliMatch.value?.replace(/^S/, "").trim() || "",
-        nif: nifMatch?.[1]?.trim() || "",
-        phone: phoneMatch?.[1]?.trim() || "",
-        email: emailMatch?.[1]?.trim() || "",
-        address: addressMatch?.[1]?.trim() || "",
-      });
-    }
-  }
-
-  return clients;
-}
-
 function decodeHtmlEntities(s: string): string {
   return s
     .replace(/&amp;/g, "&")
@@ -332,24 +366,129 @@ export async function getClientContracts(codcli: string): Promise<IRecursosContr
   return contracts;
 }
 
-export async function createOT(data: {
-  clientCode: string;
-  description: string;
-  assignedResource?: string;
-}): Promise<string | null> {
-  const body = buildXjxBody("actualitzahora_pr", [`SNUMEROT`]);
+/**
+ * Pide UNA página del listado paginado de clientes (xajax `modal_clients`).
+ *
+ * iRecursos pagina de 10 en 10. El total de páginas viene en el footer
+ * "Pág. X de N". El parser lo extrae a `totalPages`.
+ *
+ * REGLA OPERATIVA INNEGOCIABLE: este wrapper NO reintenta. Si la página
+ * falla (PHP error, sesión caducada, circuit breaker), lanza y para. La
+ * importación masiva la llama dentro de un bucle secuencial con pausas
+ * controladas por el orquestador (src/services/bulk-import.service.ts).
+ * Esto evita saturar las sesiones concurrentes de iRecursos.
+ *
+ * Devuelve la estructura tal cual la produce el parser (clients +
+ * totalPages + errors). Si hay errores de parsing en filas concretas,
+ * los reportamos pero NO lanzamos: la página puede tener filas válidas
+ * útiles junto a una malformada.
+ */
+/**
+ * Campos del <form id="form_modal_clients"> que iRecursos espera SIEMPRE
+ * en el xjxobj de modal_clients. Capturado del DOM real del modal por el
+ * usuario en DevTools.
+ *
+ * iRecursos NO funciona si solo enviamos `modal_clients_PAGINA` — devuelve
+ * HTML degradado sin <tbody>. Hay que mandar el formulario completo con
+ * sus valores por defecto. Lo único que cambia entre páginas es PAGINA.
+ *
+ * Orden importante: respetamos el orden en el que aparecen en el form.
+ * Si iRecursos lo procesara posicionalmente (cosa que no parece), un
+ * orden distinto rompería; conservarlo es la opción más segura.
+ */
+const MODAL_CLIENTS_FORM_DEFAULTS: ReadonlyArray<{ k: string; v: string }> = [
+  { k: "FILTRE_MODAL_CLIENTS", v: "" },
+  { k: "modal_clients_PAGINA", v: "1" }, // sobrescrito por página
+  { k: "modal_clients_NUMPAGINES", v: "" },
+  { k: "modal_clients_PAGINASEG", v: "" },
+  { k: "modal_clients_PAGINAANT", v: "" },
+  { k: "modal_clients_REGSXPAG", v: "10" },
+  { k: "modal_clients_QUANTS", v: "" },
+  { k: "modal_clients_REGINI", v: "" },
+  { k: "modal_clients_REGFIN", v: "" },
+  { k: "modal_clients_NUMPAG", v: "" },
+  { k: "modal_clients_ORD", v: "NOMCLI" },
+  { k: "modal_clients_ORDT", v: "" },
+  { k: "modal_clients_prefix", v: "" },
+  { k: "modal_clients_accio", v: "" },
+  { k: "modal_clients_redireccio", v: "" },
+  { k: "modal_clients_camp_dirent", v: "" },
+  { k: "modal_clients_IDDIRENT", v: "" },
+  { k: "modal_clients_capa_resum", v: "" },
+  { k: "modal_clients_CCODCLI", v: "CODCLI" },
+  { k: "modal_clients_CNOMCLI", v: "NOMCLI" },
+  { k: "modal_clients_PROJECTE", v: "" },
+  { k: "modal_clients_OT", v: "" },
+  { k: "modal_clients_CONTRACTE", v: "" },
+];
 
-  const res = await fetchWithSession(
-    `${ENDPOINTS.otNew}?CODCLI=${encodeURIComponent(data.clientCode)}`,
-    { method: "POST", body }
+export const MODAL_CLIENTS_FORM_FIELD_COUNT =
+  MODAL_CLIENTS_FORM_DEFAULTS.length;
+
+/**
+ * Construye el xjxobj con los 23 campos del formulario modal_clients, con
+ * `modal_clients_PAGINA` sobreescrito al número de página solicitado.
+ *
+ * Cada campo va como `<e><k>nombre</k><v>S{valor}</v></e>`, donde `S` es
+ * el prefijo de tipo "string" de xajax. Valores vacíos quedan como
+ * `<v>S</v>`. No usamos CDATA porque los valores son ASCII puro (en cuanto
+ * tengamos filtros con caracteres especiales, habría que wrapparlos).
+ *
+ * Pura y exportada para poder testearse sin tocar red.
+ */
+export function buildModalClientsXjxObj(pageNumber: number): string {
+  if (!Number.isInteger(pageNumber) || pageNumber < 1) {
+    throw new Error("PAGE_NUMBER_INVALID");
+  }
+  const entries = MODAL_CLIENTS_FORM_DEFAULTS.map((f) =>
+    f.k === "modal_clients_PAGINA"
+      ? `<e><k>${f.k}</k><v>S${pageNumber}</v></e>`
+      : `<e><k>${f.k}</k><v>S${f.v}</v></e>`
   );
-
-  const xml = await res.text();
-  const parsed = parseXjxResponse(xml);
-
-  const idMatch = parsed.rawXml.match(/id=(\d+)/);
-  return idMatch?.[1] || null;
+  return `<xjxobj>${entries.join("")}</xjxobj>`;
 }
+
+export async function fetchClientsPage(
+  pageNumber: number
+): Promise<ModalClientsParseResult> {
+  if (!Number.isInteger(pageNumber) || pageNumber < 1) {
+    throw new Error("PAGE_NUMBER_INVALID");
+  }
+
+  // El xajax modal_clients lleva DOS xjxargs[] positional:
+  //   1) el xjxobj con TODOS los campos del formulario
+  //   2) una cadena vacía adicional ("S" = string type prefix sin valor)
+  // Esto reproduce lo capturado en DevTools. iRecursos NO funciona con un
+  // xjxobj reducido (solo PAGINA): devuelve HTML sin <tbody>.
+  const xjxObj = buildModalClientsXjxObj(pageNumber);
+  const requestBody = buildXjxBody("modal_clients", [xjxObj, "S"]);
+
+  // mf_format=7 es lo que diferencia este uso de A-imprimir-llistat-embded
+  // del listado de OTs. Mismo PHP, distintos modos.
+  const url = `${ENDPOINTS.otList}?mf_format=7`;
+
+  const res = await fetchWithSession(url, { method: "POST", body: requestBody });
+
+  // La respuesta puede venir en ISO-8859-1 (lo declara en el header XML
+  // cuando es XJX, y los nombres comerciales tienen acentos siempre).
+  // Si dejamos res.text() Node asume UTF-8 y rompe ñ/áéíóú.
+  const buffer = await res.arrayBuffer();
+  const responseBody = new TextDecoder("iso-8859-1").decode(buffer);
+
+  // Errores SIEMPRE fatales (PHP exception, sesión caducada, etc) —
+  // aplicables a cualquier formato de respuesta.
+  const fatal = detectIrecursosFatalError(responseBody);
+  if (fatal) {
+    console.error(`[iRecursos fetchClientsPage page=${pageNumber}] ${fatal}`);
+    throw new IRecursosError(fatal, "IRECURSOS_BAD_RESPONSE");
+  }
+
+  // Routing por formato. Caso esperado: HTML pelado.
+  // Salvaguarda: si vienera XJX, también lo manejamos.
+  const html = selectModalClientsHtml(responseBody);
+  return parseModalClientsTable(html);
+}
+
 
 export async function getHealthStatus(): Promise<{
   connected: boolean;

@@ -3,20 +3,7 @@
 import { useRef, useState, useCallback } from "react";
 import { Paperclip, X, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const ALLOWED_MIME_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-  "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "text/plain",
-  "text/csv",
-];
+import { ALLOWED_MIME_TYPES } from "@/lib/storage/mime-types";
 
 const ACCEPT_ATTR = ALLOWED_MIME_TYPES.join(",");
 

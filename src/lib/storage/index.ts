@@ -2,24 +2,15 @@ import { writeFile, readFile, unlink, mkdir } from "fs/promises";
 import { join, basename } from "path";
 import { randomUUID } from "crypto";
 import { existsSync } from "fs";
+import { ALLOWED_MIME_TYPES } from "./mime-types";
 
 const UPLOAD_DIR = process.env.UPLOAD_DIR || "./uploads";
 const MAX_FILE_SIZE =
   parseInt(process.env.MAX_FILE_SIZE_MB || "10", 10) * 1024 * 1024;
 
-export const ALLOWED_MIME_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-  "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "text/plain",
-  "text/csv",
-] as const;
+// Re-exportamos para no romper a quien ya importara desde "@/lib/storage";
+// la fuente única de verdad vive en ./mime-types.
+export { ALLOWED_MIME_TYPES };
 
 const ALLOWED_SET = new Set<string>(ALLOWED_MIME_TYPES);
 

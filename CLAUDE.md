@@ -64,12 +64,19 @@ Antes de escribir código de features, el primer trabajo técnico es **diseñar 
 
 ## 3. RESTRICCIONES Y LÍMITES (LÉELOS ANTES DE PROPONER NADA)
 
-1. **iRecursos no tiene API oficial.** Lo que existe es el mapeo de endpoints/PHP del usuario y las automatizaciones n8n, aprobadas por la empresa. No asumas más acceso del que el usuario confirme. Antes de diseñar algo que dependa de iRecursos, **pregunta** qué endpoints/datos hay disponibles y con qué permisos.
+1. **iRecursos — acceso y uso operativo (regla innegociable).** Esta regla existe porque saturar las sesiones de iRecursos ya bloqueó el acceso real durante el desarrollo; no es teórica.
+   - **No hay API oficial.** Lo único que existe es el mapeo de endpoints/PHP del usuario y las automatizaciones n8n, aprobadas por la empresa. No asumas más acceso del que el usuario confirme.
+   - **iRecursos limita las sesiones concurrentes por usuario a nivel de licencia.** Logins repetidos saturan la cuenta y bloquean el acceso real al usuario en su navegador, no solo desde código. Recuperar el acceso puede requerir intervención manual del proveedor (Ilertec) y costar horas de trabajo.
+   - **Por tanto, queda prohibido**: loguearse en bucle, hacer reintentos automáticos, ejecutar scripts que prueben combinaciones a fuerza bruta, o cualquier patrón que dispare más de una conexión seguida contra iRecursos real.
+   - **Toda prueba contra iRecursos es puntual y autorizada**: antes de cualquier llamada, avisa al usuario con qué vas a hacer y espera su OK explícito. Máximo una conexión por necesidad.
+   - **Descubrir cómo funciona iRecursos** (firmas de funciones, formato de payloads, comportamiento de un endpoint) **se hace pidiéndoselo al usuario**, que captura la información desde el navegador con DevTools. No se descubre por probing contra el servidor real.
+   - **Tras una prueba autorizada, cierra/libera la sesión** (logout explícito) — no la dejes colgada esperando al timeout.
+   - **Si una llamada autorizada falla, NO reintentes automáticamente.** Reporta al usuario y espera instrucciones.
+   - Antes de diseñar algo que dependa de iRecursos, **pregunta** qué endpoints/datos hay disponibles y con qué permisos.
 2. **No inventes.** Nunca des por hechos datos de la empresa, del stack, de los productos o de los permisos. Si no lo sabes, **pregúntalo**. Una suposición silenciosa que resulte falsa puede costar el puesto.
 3. **Seguridad y confianza primero.** Cualquier cosa que toque datos de clientes, credenciales o sistemas internos debe diseñarse con cuidado de seguridad explícito (no exponer secretos, no exfiltrar datos, entornos de prueba antes que producción). El reverse-engineering aprobado es un mérito **solo si se presenta y se usa de forma responsable**. Si una propuesta tiene riesgo de seguridad o de imagen, **dilo claramente y ofrece la alternativa segura**.
 4. **Terreno tecnológico.** El stack del equipo está en VARIABLES (§0). Mientras siga `[POR CONFIRMAR]`, trátalo como el dato más urgente que falta: empuja al usuario a averiguarlo y marca tus propuestas como provisionales hasta tenerlo. Cuando se confirme, prioriza propuestas en su terreno o cercanas a él, para que el decisor las pueda leer como "encaja con nosotros".
 5. **Realismo de calendario.** Dentro de la ventana de VARIABLES (§0). Si una idea no cabe terminada en esa ventana, recórtala a un alcance que sí quepa, o propón una versión demostrable.
-
 ---
 
 ## 4. CÓMO DEBES OPERAR (TUS REGLAS DE CONDUCTA)

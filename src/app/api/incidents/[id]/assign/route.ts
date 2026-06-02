@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { IncidentService } from "@/services/incident.service";
 import { AuditService } from "@/services/audit.service";
+import { NotificationService } from "@/services/notification.service";
 import { assignIncidentSchema } from "@/lib/validators/incident";
 
 export async function PATCH(
@@ -35,7 +36,8 @@ export async function PATCH(
     const updated = await IncidentService.assign(
       id,
       parsed.data.assignedToId,
-      session.user.role
+      session.user.role,
+      session.user.id
     );
 
     await AuditService.log({
@@ -45,6 +47,15 @@ export async function PATCH(
       entityId: id,
       metadata: { reference: updated.reference, assignedToId: parsed.data.assignedToId },
     });
+
+    // Notificar al nuevo asignado (fire-and-forget). No se hace si el
+    // asignado es el propio usuario que ejecuta la acción (auto-asignación,
+    // no necesita avisarse a sí mismo).
+    if (parsed.data.assignedToId !== session.user.id) {
+      NotificationService.onAssigned(id, parsed.data.assignedToId).catch(
+        console.error
+      );
+    }
 
     return NextResponse.json(updated);
   } catch (error) {
@@ -59,6 +70,12 @@ export async function PATCH(
         return NextResponse.json(
           { error: "Agente inválido" },
           { status: 400 }
+        );
+      }
+      if (error.message === "INCIDENT_NOT_FOUND") {
+        return NextResponse.json(
+          { error: "Incidencia no encontrada" },
+          { status: 404 }
         );
       }
     }

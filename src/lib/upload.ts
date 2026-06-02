@@ -43,6 +43,11 @@ export function uploadAttachment(params: {
     }
 
     xhr.onload = () => {
+      // 401 → sesión expirada: disparamos el evento global para que el
+      // modal de SessionExpiredModal aparezca igual que con apiFetch.
+      if (xhr.status === 401 && typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("portal:session-expired"));
+      }
       try {
         const data = JSON.parse(xhr.responseText);
         if (xhr.status >= 200 && xhr.status < 300) {

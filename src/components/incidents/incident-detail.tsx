@@ -6,10 +6,17 @@ import type { Role } from "@prisma/client";
 import { cn } from "@/lib/utils";
 import { MessageSquare, Lock, Paperclip, ArrowLeft, AlertCircle } from "lucide-react";
 import Link from "next/link";
-import { statusLabel, statusClass } from "@/lib/incident-states";
-import { priorityLabel, ROLE_LABELS, formatDateTime } from "@/lib/constants";
+import {
+  statusLabelFor,
+  statusClassFor,
+  VALID_TRANSITIONS,
+} from "@/lib/incident-states";
+import { PRIORITY_CONFIG, ROLE_LABELS, formatDateTime } from "@/lib/constants";
 import { FileUploader, type PendingFile } from "@/components/incidents/file-uploader";
+import { ImageLightbox } from "@/components/incidents/image-lightbox";
 import { uploadAttachment } from "@/lib/upload";
+import { apiFetch } from "@/lib/api-fetch";
+import { isImageMime } from "@/lib/storage/mime-types";
 
 interface IncidentDetailProps {
   incident: {
@@ -45,9 +52,9 @@ interface IncidentDetailProps {
         lastName: string;
         role: Role;
       };
-      attachments: { id: string; fileName: string; fileSize: number }[];
+      attachments: { id: string; fileName: string; fileSize: number; mimeType: string }[];
     }[];
-    attachments: { id: string; fileName: string; fileSize: number }[];
+    attachments: { id: string; fileName: string; fileSize: number; mimeType: string }[];
     statusChanges: {
       id: string;
       fromStatus: string;
@@ -62,9 +69,114 @@ interface IncidentDetailProps {
     role: Role;
     companyId: string | null;
   };
+  /** Lista de AGENT/ADMIN activos para el selector de reasignación.
+   *  Vacía para CLIENT (no se le permite reasignar). */
+  assignableUsers: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    role: Role;
+  }[];
 }
 
-export function IncidentDetail({ incident, currentUser }: IncidentDetailProps) {
+// ── Helpers de transición ────────────────────────────────────────────────
+// Mapean (from, to) → label visible y estilo del botón. La UI ya no decide
+// QUÉ transiciones existen — eso lo dicta VALID_TRANSITIONS (fuente única
+// de verdad en src/lib/incident-states.ts). Aquí solo se decide cómo se
+// renderiza cada transición permitida.
+const TRANSITION_BUTTON_STYLE: Record<string, string> = {
+  IN_PROGRESS: "bg-[#275d6b] hover:bg-[#1f4e5b] text-white",
+  WAITING_CLIENT: "bg-yellow-500 hover:bg-yellow-600 text-white",
+  WAITING_THIRD_PARTY: "bg-purple-500 hover:bg-purple-600 text-white",
+  RESOLVED: "bg-green-600 hover:bg-green-700 text-white",
+  CLOSED: "bg-gray-600 hover:bg-gray-700 text-white",
+};
+
+function transitionLabel(from: string, to: string): string {
+  // Etiquetas contextuales según el estado origen
+  if (from === "OPEN" && to === "IN_PROGRESS") return "Tomar incidencia";
+  if (from === "RESOLVED" && to === "IN_PROGRESS") return "Reabrir";
+  if (from === "RESOLVED" && to === "CLOSED") return "Confirmar y cerrar";
+  // Etiquetas por defecto según el estado destino
+  if (to === "IN_PROGRESS") return "Retomar";
+  if (to === "WAITING_CLIENT") return "Esperando cliente";
+  if (to === "WAITING_THIRD_PARTY") return "Escalar a tercero";
+  if (to === "RESOLVED") return "Marcar resuelta";
+  if (to === "CLOSED") return "Cerrar incidencia";
+  return to;
+}
+
+function transitionButtonStyle(from: string, to: string): string {
+  // "Reabrir" (RESOLVED → IN_PROGRESS) lleva color propio (naranja) para no
+  // confundirse visualmente con "Tomar" / "Retomar" (teal).
+  if (from === "RESOLVED" && to === "IN_PROGRESS") {
+    return "bg-orange-500 hover:bg-orange-600 text-white";
+  }
+  return TRANSITION_BUTTON_STYLE[to] ?? "bg-gray-500 hover:bg-gray-600 text-white";
+}
+
+// ── Renderizado de la lista de adjuntos ──────────────────────────────
+// Para imágenes (allowlist en isImageMime) → miniatura clicable que abre
+// el lightbox in-page. Para el resto (PDF, Word, Excel, txt, csv) →
+// enlace de descarga clásico con icono Paperclip. Lo extraemos para
+// reusarlo entre el bloque de adjuntos de la incidencia y el de los
+// mensajes sin duplicar la lógica.
+interface AttachmentLike {
+  id: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+}
+
+function AttachmentList({
+  attachments,
+  onPreview,
+  className,
+}: {
+  attachments: AttachmentLike[];
+  onPreview: (att: AttachmentLike) => void;
+  className?: string;
+}) {
+  if (attachments.length === 0) return null;
+  return (
+    <div className={cn("flex flex-wrap gap-2", className)}>
+      {attachments.map((att) =>
+        isImageMime(att.mimeType) ? (
+          <button
+            key={att.id}
+            type="button"
+            onClick={() => onPreview(att)}
+            title={att.fileName}
+            aria-label={`Vista previa de ${att.fileName}`}
+            className="block h-20 w-20 rounded border border-gray-200 overflow-hidden hover:border-[#275d6b] focus:outline-none focus:ring-2 focus:ring-[#275d6b]/40 transition-colors"
+          >
+            <img
+              src={`/api/attachments/${att.id}`}
+              alt={att.fileName}
+              loading="lazy"
+              className="h-full w-full object-cover"
+            />
+          </button>
+        ) : (
+          <a
+            key={att.id}
+            href={`/api/attachments/${att.id}`}
+            className="inline-flex items-center gap-1 px-2 py-1 text-xs text-[#275d6b] bg-[#275d6b]/5 rounded hover:bg-[#275d6b]/10"
+          >
+            <Paperclip className="h-3 w-3" />
+            {att.fileName}
+          </a>
+        )
+      )}
+    </div>
+  );
+}
+
+export function IncidentDetail({
+  incident,
+  currentUser,
+  assignableUsers,
+}: IncidentDetailProps) {
   const router = useRouter();
   const [newMessage, setNewMessage] = useState("");
   const [isInternal, setIsInternal] = useState(false);
@@ -73,7 +185,22 @@ export function IncidentDetail({ incident, currentUser }: IncidentDetailProps) {
   const [msgAttachments, setMsgAttachments] = useState<PendingFile[]>([]);
   const [msgUploadingIdx, setMsgUploadingIdx] = useState<number | null>(null);
   const [msgUploadProgress, setMsgUploadProgress] = useState(0);
-  const [creationWarnings, setCreationWarnings] = useState<string[]>([]);
+  // ── Lightbox para previsualizar imágenes adjuntas ───────────────────
+  // null cuando está cerrado. Cuando hay un objeto, ImageLightbox monta y
+  // bloquea el scroll del body. Mismo state vale para los dos bloques de
+  // adjuntos (incidencia y mensajes) — solo hay un lightbox a la vez.
+  const [lightbox, setLightbox] = useState<AttachmentLike | null>(null);
+  // ── Feedback al usuario ─────────────────────────────────────────────
+  // actionError → banner rojo (algo falló: status change, send message...)
+  // uploadWarnings → banner ámbar (acción ok pero algún adjunto no subió;
+  //   se reutiliza para la creación (vía sessionStorage) y para el envío
+  //   de mensajes, con copy contextual según el `context`).
+  // ────────────────────────────────────────────────────────────────────
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [uploadWarnings, setUploadWarnings] = useState<{
+    context: "creation" | "message";
+    items: string[];
+  } | null>(null);
 
   // Recoge warnings de subida de adjuntos generadas en el formulario
   // de creacion (cuando la incidencia se creo pero algun adjunto fallo)
@@ -84,7 +211,7 @@ export function IncidentDetail({ incident, currentUser }: IncidentDetailProps) {
       try {
         const warnings = JSON.parse(raw) as string[];
         if (Array.isArray(warnings) && warnings.length > 0) {
-          setCreationWarnings(warnings);
+          setUploadWarnings({ context: "creation", items: warnings });
         }
       } catch {
         // ignorar JSON invalido
@@ -93,42 +220,150 @@ export function IncidentDetail({ incident, currentUser }: IncidentDetailProps) {
     }
   }, [incident.id]);
 
-  const status = { label: statusLabel(incident.status), className: statusClass(incident.status) };
+  const status = {
+    label: statusLabelFor(currentUser.role, incident.status),
+    className: statusClassFor(currentUser.role, incident.status),
+  };
   const isClosed = incident.status === "CLOSED";
+
+  // Transiciones permitidas desde el estado actual filtradas por el rol del
+  // usuario. CLOSED y cualquier estado sin transiciones aplicables al rol
+  // dejan la lista vacía → el bloque de botones simplemente no se pinta.
+  const availableTransitions = (
+    VALID_TRANSITIONS[incident.status as keyof typeof VALID_TRANSITIONS] ?? []
+  ).filter((t) => t.roles.includes(currentUser.role as never));
+
+  // ── Quién puede reasignar la incidencia ──────────────────────────
+  // ADMIN: siempre (distribuye trabajo).
+  // AGENT: solo si la incidencia no tiene asignado actual, o si él mismo
+  //        es el asignado actual (puede cederla a otro). Misma regla
+  //        que aplica el servicio en backend.
+  // CLIENT: nunca.
+  const canReassign =
+    currentUser.role === "ADMIN" ||
+    (currentUser.role === "AGENT" &&
+      (!incident.assignedTo || incident.assignedTo.id === currentUser.id));
+  const [assignLoading, setAssignLoading] = useState(false);
+
+  // ── Cambio de prioridad (triaje) ────────────────────────────────────
+  // SOLO AGENT/ADMIN. CLIENT ve la prioridad como texto pero no la cambia.
+  // El servidor revalida el rol; aquí solo controlamos qué se pinta.
+  const canChangePriority = currentUser.role !== "CLIENT";
+  const [priorityLoading, setPriorityLoading] = useState(false);
+
+  async function handleChangePriority(newPriority: string) {
+    if (newPriority === incident.priority) return;
+    setActionError(null);
+    setPriorityLoading(true);
+    try {
+      const res = await apiFetch(`/api/incidents/${incident.id}/priority`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ priority: newPriority }),
+      });
+      if (res.ok) {
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setActionError(
+          data?.error || "No se pudo cambiar la prioridad. Inténtalo de nuevo."
+        );
+      }
+    } catch {
+      setActionError("Error de conexión. Inténtalo de nuevo.");
+    } finally {
+      setPriorityLoading(false);
+    }
+  }
+
+  async function handleReassign(newAssigneeId: string) {
+    if (newAssigneeId === (incident.assignedTo?.id ?? "")) return;
+    const newAssignee = assignableUsers.find((u) => u.id === newAssigneeId);
+    if (!newAssignee) return;
+
+    const confirmed = window.confirm(
+      `¿Reasignar la incidencia a ${newAssignee.firstName} ${newAssignee.lastName}?`
+    );
+    if (!confirmed) return;
+
+    setActionError(null);
+    setAssignLoading(true);
+    try {
+      const res = await apiFetch(`/api/incidents/${incident.id}/assign`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignedToId: newAssigneeId }),
+      });
+      if (res.ok) {
+        router.refresh();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setActionError(
+          data?.error || "No se pudo reasignar la incidencia. Inténtalo de nuevo."
+        );
+      }
+    } catch {
+      setActionError("Error de conexión. Inténtalo de nuevo.");
+    } finally {
+      setAssignLoading(false);
+    }
+  }
 
   async function handleSendMessage(e: React.FormEvent) {
     e.preventDefault();
     if (!newMessage.trim()) return;
     if (msgAttachments.some((a) => a.error)) return;
+    setActionError(null);
     setSending(true);
 
     try {
-      const res = await fetch(`/api/incidents/${incident.id}/messages`, {
+      const res = await apiFetch(`/api/incidents/${incident.id}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: newMessage, isInternal }),
       });
 
-      if (!res.ok) return;
+      if (!res.ok) {
+        // Antes esto era un `return` silencioso. Ahora el usuario ve qué pasó.
+        const data = await res.json().catch(() => ({}));
+        setActionError(
+          data?.error ||
+            "No se pudo enviar el mensaje. Inténtalo de nuevo."
+        );
+        return;
+      }
 
       const message = await res.json();
 
-      // Subir adjuntos del mensaje uno por uno con progreso
+      // Subir adjuntos del mensaje uno por uno con progreso. Antes los
+      // fallos se ignoraban; ahora los recogemos y avisamos al usuario.
+      const failedUploads: string[] = [];
       for (let i = 0; i < msgAttachments.length; i++) {
         setMsgUploadingIdx(i);
         setMsgUploadProgress(0);
-        await uploadAttachment({
+        const result = await uploadAttachment({
           file: msgAttachments[i].file,
           messageId: message.id,
           onProgress: (p) => setMsgUploadProgress(p.percent),
         });
+        if (!result.ok) {
+          failedUploads.push(
+            `${msgAttachments[i].file.name}: ${result.error}`
+          );
+        }
       }
       setMsgUploadingIdx(null);
+
+      if (failedUploads.length > 0) {
+        setUploadWarnings({ context: "message", items: failedUploads });
+      }
 
       setNewMessage("");
       setIsInternal(false);
       setMsgAttachments([]);
       router.refresh();
+    } catch {
+      setActionError("Error de conexión. Inténtalo de nuevo.");
     } finally {
       setSending(false);
       setMsgUploadingIdx(null);
@@ -151,14 +386,27 @@ export function IncidentDetail({ incident, currentUser }: IncidentDetailProps) {
       if (!confirmed) return;
     }
 
+    setActionError(null);
     setStatusLoading(true);
     try {
-      const res = await fetch(`/api/incidents/${incident.id}/status`, {
+      const res = await apiFetch(`/api/incidents/${incident.id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
-      if (res.ok) router.refresh();
+      if (res.ok) {
+        router.refresh();
+      } else {
+        // Antes el fallo era silencioso. Ahora el usuario ve el motivo
+        // (sesión expirada, transición inválida, permisos, etc.).
+        const data = await res.json().catch(() => ({}));
+        setActionError(
+          data?.error ||
+            "No se pudo cambiar el estado. Inténtalo de nuevo."
+        );
+      }
+    } catch {
+      setActionError("Error de conexión. Inténtalo de nuevo.");
     } finally {
       setStatusLoading(false);
     }
@@ -174,15 +422,32 @@ export function IncidentDetail({ incident, currentUser }: IncidentDetailProps) {
         Volver a incidencias
       </Link>
 
-      {creationWarnings.length > 0 && (
+      {actionError && (
+        <div className="mb-4 bg-red-50 border border-red-200 rounded-md p-3 flex items-start gap-2">
+          <AlertCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
+          <p className="text-sm flex-1 text-red-700">{actionError}</p>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            className="text-red-600 hover:text-red-800"
+            aria-label="Cerrar aviso"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {uploadWarnings && uploadWarnings.items.length > 0 && (
         <div className="mb-4 bg-amber-50 border border-amber-200 rounded-md p-3 flex items-start gap-2">
           <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
           <div className="text-sm flex-1">
             <p className="text-amber-800 font-medium">
-              La incidencia se creó, pero algunos adjuntos fallaron:
+              {uploadWarnings.context === "creation"
+                ? "La incidencia se creó, pero algunos adjuntos fallaron:"
+                : "El mensaje se envió, pero algunos adjuntos no se pudieron adjuntar:"}
             </p>
             <ul className="mt-1 text-amber-700 text-xs space-y-0.5 list-disc list-inside">
-              {creationWarnings.map((w, i) => (
+              {uploadWarnings.items.map((w, i) => (
                 <li key={i}>{w}</li>
               ))}
             </ul>
@@ -192,7 +457,7 @@ export function IncidentDetail({ incident, currentUser }: IncidentDetailProps) {
           </div>
           <button
             type="button"
-            onClick={() => setCreationWarnings([])}
+            onClick={() => setUploadWarnings(null)}
             className="text-amber-600 hover:text-amber-800"
             aria-label="Cerrar aviso"
           >
@@ -222,13 +487,39 @@ export function IncidentDetail({ incident, currentUser }: IncidentDetailProps) {
           </span>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-          <div>
-            <p className="text-gray-500">Prioridad</p>
-            <p className="font-medium">
-              {priorityLabel(incident.priority)}
-            </p>
-          </div>
+        <div
+          className={cn(
+            "mt-4 grid gap-4 text-sm",
+            // CLIENT no ve Prioridad → 3 columnas (Categoría, Creado por,
+            // Asignado a). AGENT/ADMIN ven las 4 originales.
+            canChangePriority
+              ? "grid-cols-2 sm:grid-cols-4"
+              : "grid-cols-1 sm:grid-cols-3"
+          )}
+        >
+          {/* Bloque "Prioridad": SOLO AGENT/ADMIN. CLIENT no ve ni la
+              etiqueta. canChangePriority ya es (role !== "CLIENT"). */}
+          {canChangePriority && (
+            <div>
+              <p className="text-gray-500">Prioridad</p>
+              <select
+                value={incident.priority}
+                onChange={(e) => handleChangePriority(e.target.value)}
+                disabled={priorityLoading}
+                aria-label="Cambiar prioridad"
+                className={cn(
+                  "mt-0.5 w-full text-sm bg-white border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#275d6b]/40 focus:border-[#275d6b] disabled:opacity-50 disabled:cursor-wait",
+                  PRIORITY_CONFIG[incident.priority as keyof typeof PRIORITY_CONFIG]?.className
+                )}
+              >
+                {(Object.keys(PRIORITY_CONFIG) as Array<keyof typeof PRIORITY_CONFIG>).map((k) => (
+                  <option key={k} value={k}>
+                    {PRIORITY_CONFIG[k].label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div>
             <p className="text-gray-500">Categoría</p>
             <p className="font-medium">{incident.category || "—"}</p>
@@ -241,11 +532,31 @@ export function IncidentDetail({ incident, currentUser }: IncidentDetailProps) {
           </div>
           <div>
             <p className="text-gray-500">Asignado a</p>
-            <p className="font-medium">
-              {incident.assignedTo
-                ? `${incident.assignedTo.firstName} ${incident.assignedTo.lastName}`
-                : "Sin asignar"}
-            </p>
+            {canReassign ? (
+              <select
+                value={incident.assignedTo?.id ?? ""}
+                onChange={(e) => handleReassign(e.target.value)}
+                disabled={assignLoading}
+                aria-label="Reasignar incidencia"
+                className="mt-0.5 w-full text-sm font-medium bg-white border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-[#275d6b]/40 focus:border-[#275d6b] disabled:opacity-50 disabled:cursor-wait"
+              >
+                <option value="" disabled>
+                  Sin asignar
+                </option>
+                {assignableUsers.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.firstName} {u.lastName}
+                    {u.role === "ADMIN" ? " (Admin)" : ""}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="font-medium">
+                {incident.assignedTo
+                  ? `${incident.assignedTo.firstName} ${incident.assignedTo.lastName}`
+                  : "Sin asignar"}
+              </p>
+            )}
           </div>
         </div>
 
@@ -256,63 +567,25 @@ export function IncidentDetail({ incident, currentUser }: IncidentDetailProps) {
           </div>
         )}
 
-        {/* Acciones de estado */}
-        {!isClosed && (
+        {/* Acciones de estado — generadas dinámicamente desde VALID_TRANSITIONS.
+            Si availableTransitions es vacío (CLOSED, o rol sin transiciones
+            posibles desde el estado actual), no se pinta el separador ni la
+            sección, manteniendo el detalle limpio. */}
+        {availableTransitions.length > 0 && (
           <div className="mt-4 pt-4 border-t border-gray-100 flex flex-wrap gap-2">
-            {incident.status === "OPEN" &&
-              currentUser.role !== "CLIENT" && (
-                <button
-                  onClick={() => handleStatusChange("IN_PROGRESS")}
-                  disabled={statusLoading}
-                  className="px-3 py-1.5 text-sm bg-[#275d6b] text-white rounded-md hover:bg-[#1f4e5b] disabled:opacity-50"
-                >
-                  Tomar incidencia
-                </button>
-              )}
-            {incident.status === "IN_PROGRESS" &&
-              currentUser.role !== "CLIENT" && (
-                <>
-                  <button
-                    onClick={() => handleStatusChange("WAITING_CLIENT")}
-                    disabled={statusLoading}
-                    className="px-3 py-1.5 text-sm bg-yellow-500 text-white rounded-md hover:bg-yellow-600 disabled:opacity-50"
-                  >
-                    Esperando cliente
-                  </button>
-                  <button
-                    onClick={() => handleStatusChange("WAITING_THIRD_PARTY")}
-                    disabled={statusLoading}
-                    className="px-3 py-1.5 text-sm bg-purple-500 text-white rounded-md hover:bg-purple-600 disabled:opacity-50"
-                  >
-                    Escalar a tercero
-                  </button>
-                  <button
-                    onClick={() => handleStatusChange("RESOLVED")}
-                    disabled={statusLoading}
-                    className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
-                  >
-                    Marcar resuelta
-                  </button>
-                </>
-              )}
-            {incident.status === "RESOLVED" && (
-              <>
-                <button
-                  onClick={() => handleStatusChange("CLOSED")}
-                  disabled={statusLoading}
-                  className="px-3 py-1.5 text-sm bg-gray-600 text-white rounded-md hover:bg-gray-700 disabled:opacity-50"
-                >
-                  Confirmar y cerrar
-                </button>
-                <button
-                  onClick={() => handleStatusChange("IN_PROGRESS")}
-                  disabled={statusLoading}
-                  className="px-3 py-1.5 text-sm bg-orange-500 text-white rounded-md hover:bg-orange-600 disabled:opacity-50"
-                >
-                  Reabrir
-                </button>
-              </>
-            )}
+            {availableTransitions.map((t) => (
+              <button
+                key={t.to}
+                onClick={() => handleStatusChange(t.to)}
+                disabled={statusLoading}
+                className={cn(
+                  "px-3 py-1.5 text-sm rounded-md disabled:opacity-50 transition-colors",
+                  transitionButtonStyle(incident.status, t.to)
+                )}
+              >
+                {transitionLabel(incident.status, t.to)}
+              </button>
+            ))}
           </div>
         )}
       </div>
@@ -323,20 +596,11 @@ export function IncidentDetail({ incident, currentUser }: IncidentDetailProps) {
         <p className="text-gray-900 whitespace-pre-wrap break-words">
           {incident.description}
         </p>
-        {incident.attachments.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {incident.attachments.map((att) => (
-              <a
-                key={att.id}
-                href={`/api/attachments/${att.id}`}
-                className="inline-flex items-center gap-1 px-2 py-1 text-xs text-[#275d6b] bg-[#275d6b]/5 rounded hover:bg-[#275d6b]/10"
-              >
-                <Paperclip className="h-3 w-3" />
-                {att.fileName}
-              </a>
-            ))}
-          </div>
-        )}
+        <AttachmentList
+          attachments={incident.attachments}
+          onPreview={setLightbox}
+          className="mt-3"
+        />
       </div>
 
       {/* Mensajes */}
@@ -371,20 +635,11 @@ export function IncidentDetail({ incident, currentUser }: IncidentDetailProps) {
             <p className="text-sm text-gray-700 whitespace-pre-wrap">
               {msg.content}
             </p>
-            {msg.attachments.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {msg.attachments.map((att) => (
-                  <a
-                    key={att.id}
-                    href={`/api/attachments/${att.id}`}
-                    className="inline-flex items-center gap-1 px-2 py-1 text-xs text-[#275d6b] bg-[#275d6b]/5 rounded hover:bg-[#275d6b]/10"
-                  >
-                    <Paperclip className="h-3 w-3" />
-                    {att.fileName}
-                  </a>
-                ))}
-              </div>
-            )}
+            <AttachmentList
+              attachments={msg.attachments}
+              onPreview={setLightbox}
+              className="mt-2"
+            />
           </div>
         ))}
       </div>
@@ -466,6 +721,18 @@ export function IncidentDetail({ incident, currentUser }: IncidentDetailProps) {
             </button>
           </div>
         </form>
+      )}
+
+      {/* Lightbox de previsualización de imágenes. Se monta solo cuando
+          hay un attachment seleccionado. La seguridad la da el endpoint
+          /api/attachments/[id] (mismo path que la descarga); este
+          componente solo decide qué se renderiza, no qué se sirve. */}
+      {lightbox && (
+        <ImageLightbox
+          src={`/api/attachments/${lightbox.id}`}
+          alt={lightbox.fileName}
+          onClose={() => setLightbox(null)}
+        />
       )}
     </div>
   );

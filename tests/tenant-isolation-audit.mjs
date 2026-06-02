@@ -113,6 +113,19 @@ async function main() {
   test("Sin auth -> API devuelve 401 JSON (no redirect)", noAuth.status, 401);
 
   // Limpieza
+  // AuditLog no cascada: si alguna API loggea sobre las entidades creadas
+  // (incidencia, usuario, empresa), las entradas quedarian huerfanas tras
+  // borrar la entidad. Preventivo: aunque hoy este test no las genere.
+  await prisma.auditLog.deleteMany({
+    where: {
+      OR: [
+        { entityType: "Incident", entityId: incidentB.id },
+        { entityType: "User", entityId: clientB.id },
+        { entityType: "Company", entityId: companyB.id },
+        { userId: clientB.id },
+      ],
+    },
+  }).catch(() => {});
   await prisma.incident.delete({ where: { id: incidentB.id } }).catch(() => {});
   await prisma.user.delete({ where: { id: clientB.id } }).catch(() => {});
   await prisma.company.delete({ where: { id: companyB.id } }).catch(() => {});

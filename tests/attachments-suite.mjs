@@ -225,6 +225,19 @@ try {
   console.log("\n=== FIN SUITE ===");
 } finally {
   // Limpieza
+  // AuditLog no cascada: si alguna API loggea sobre las entidades creadas
+  // (incidencia, usuario, empresa), las entradas quedarian huerfanas tras
+  // borrar la entidad. Preventivo: aunque hoy este test no las genere.
+  await prisma.auditLog.deleteMany({
+    where: {
+      OR: [
+        { entityType: "Incident", entityId: foreignIncident.id },
+        { entityType: "User", entityId: userB.id },
+        { entityType: "Company", entityId: companyB.id },
+        { userId: userB.id },
+      ],
+    },
+  }).catch(() => {});
   await prisma.attachment.deleteMany({
     where: { incident: { reference: { in: [ownIncident.reference, "INC-ATTACH-B-001"] } } }
   });

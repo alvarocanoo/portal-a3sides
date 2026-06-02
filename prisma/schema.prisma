@@ -42,6 +42,15 @@ model Company {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
+  // Cache de contratos/productos consultados a iRecursos para esta
+  // empresa. Reduce llamadas a iRecursos (que tiene límite de sesiones
+  // concurrentes) cuando varios clientes de la misma empresa abren el
+  // formulario de nueva incidencia. TTL controlado en código
+  // (src/lib/irecursos/contracts-cache.ts). Se invalida al cambiar
+  // irecursosClientId.
+  cachedContracts   Json?
+  cachedContractsAt DateTime?
+
   users     User[]
   incidents Incident[]
 

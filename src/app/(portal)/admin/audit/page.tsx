@@ -9,7 +9,9 @@ const ACTION_LABELS: Record<string, string> = {
   "incident.assign": "Incidencia asignada",
   "user.create": "Usuario creado",
   "user.update": "Usuario modificado",
+  "user.password_reset": "Contraseña restablecida",
   "company.create": "Empresa creada",
+  "company.update": "Empresa modificada",
   "company.import_irecursos": "Empresa importada de iRecursos",
   "company.import_existing": "Empresa vinculada a iRecursos",
 };
@@ -73,8 +75,21 @@ function formatDetails(item: AuditItem): string {
       return changes.length > 0 ? changes.join(", ") : "Datos modificados";
     }
 
+    case "user.password_reset":
+      return "Contraseña temporal generada y enviada por email";
+
     case "company.create":
       return "Nueva empresa registrada";
+
+    case "company.update": {
+      const changes: string[] = [];
+      if (m.isActive === false) changes.push("desactivada");
+      if (m.isActive === true) changes.push("reactivada");
+      if (m.name) changes.push("nombre");
+      if (m.taxId !== undefined) changes.push("CIF/NIF");
+      if (m.irecursosClientId !== undefined) changes.push("ID iRecursos");
+      return changes.length > 0 ? changes.join(", ") : "Datos modificados";
+    }
 
     case "company.import_irecursos":
       return m.irecursosCode

@@ -17,6 +17,8 @@ import {
   STATUS_CONFIG,
   statusClass,
   statusLabel,
+  statusLabelFor,
+  statusClassFor,
 } from "@/lib/incident-states";
 import { formatDate } from "@/lib/constants";
 
@@ -34,7 +36,18 @@ export default async function DashboardPage() {
   const session = await requireAuth();
   const { role, companyId } = session.user;
 
-  const where = role === "CLIENT" ? { companyId: companyId! } : {};
+  // Scope unificado por rol — cards y lista usan EL MISMO filtro para que
+  // los conteos coincidan con lo que el usuario ve abajo.
+  //   CLIENT → su empresa
+  //   AGENT  → sus incidencias asignadas (consistente con "Tus incidencias
+  //            asignadas" y con la lista de abajo).
+  //   ADMIN  → todo
+  const where =
+    role === "CLIENT"
+      ? { companyId: companyId! }
+      : role === "AGENT"
+        ? { assignedToId: session.user.id }
+        : {};
 
   const [counts, recentIncidents] = await Promise.all([
     prisma.incident.groupBy({
@@ -43,10 +56,7 @@ export default async function DashboardPage() {
       _count: { _all: true },
     }),
     prisma.incident.findMany({
-      where: {
-        ...where,
-        ...(role === "AGENT" ? { assignedToId: session.user.id } : {}),
-      },
+      where,
       include: {
         company: { select: { name: true } },
         createdBy: { select: { firstName: true, lastName: true } },
@@ -66,6 +76,60 @@ export default async function DashboardPage() {
 
   // Una tarjeta "Total" + una por cada estado, en el orden del enum.
   const statusOrder: IncidentStatus[] = Object.keys(STATUS_CONFIG) as IncidentStatus[];
+
+  // ── Tarjetas agrupadas para CLIENT (4 en vez de 6) ──────────────────
+  // El cliente ve 4 etiquetas (Abierta, En proceso, Esperando tu respuesta,
+  // Cerrada). Sumamos en memoria los pares correspondientes y enlazamos a
+  // los pseudo-valores que la página de lista expande con
+  // `expandClientStatusFilter`.
+  const isClient = role === "CLIENT";
+  const CLIENT_DASHBOARD_CARDS: {
+    label: string;
+    icon: LucideIcon;
+    className: string;
+    count: number;
+    href: string;
+  }[] = isClient
+    ? [
+        {
+          label: "Abierta",
+          icon: STATUS_ICONS[IncidentStatus.OPEN],
+          className: statusClassFor(role, IncidentStatus.OPEN),
+          count: countByStatus[IncidentStatus.OPEN] ?? 0,
+          href: `/incidencias?status=${IncidentStatus.OPEN}`,
+        },
+        {
+          label: "En proceso",
+          icon: STATUS_ICONS[IncidentStatus.IN_PROGRESS],
+          className: statusClassFor(role, IncidentStatus.IN_PROGRESS),
+          count:
+            (countByStatus[IncidentStatus.IN_PROGRESS] ?? 0) +
+            (countByStatus[IncidentStatus.WAITING_THIRD_PARTY] ?? 0),
+          href: "/incidencias?status=IN_PROCESS",
+        },
+        {
+          // Variante CORTA solo para esta tarjeta del dashboard (cabe sin
+          // truncar). En la lista y el detalle, donde hay más espacio, el
+          // CLIENT sigue viendo "Esperando tu respuesta" vía
+          // statusLabelFor() — esto es presentación contextual del MISMO
+          // estado interno WAITING_CLIENT.
+          label: "Pendiente de ti",
+          icon: STATUS_ICONS[IncidentStatus.WAITING_CLIENT],
+          className: statusClassFor(role, IncidentStatus.WAITING_CLIENT),
+          count: countByStatus[IncidentStatus.WAITING_CLIENT] ?? 0,
+          href: `/incidencias?status=${IncidentStatus.WAITING_CLIENT}`,
+        },
+        {
+          label: "Cerrada",
+          icon: STATUS_ICONS[IncidentStatus.CLOSED],
+          className: statusClassFor(role, IncidentStatus.CLOSED),
+          count:
+            (countByStatus[IncidentStatus.RESOLVED] ?? 0) +
+            (countByStatus[IncidentStatus.CLOSED] ?? 0),
+          href: "/incidencias?status=CLOSED_GROUP",
+        },
+      ]
+    : [];
 
   const greeting =
     role === "CLIENT"
@@ -93,36 +157,63 @@ export default async function DashboardPage() {
             </div>
             <div className="min-w-0">
               <p className="text-2xl font-bold text-gray-900">{total}</p>
-              <p className="text-sm text-gray-500 truncate">Total</p>
+              <p className="text-sm text-gray-500 leading-tight">Total</p>
             </div>
           </div>
         </Link>
 
-        {/* Una tarjeta por estado */}
-        {statusOrder.map((status) => {
-          const Icon = STATUS_ICONS[status];
-          return (
-            <Link
-              key={status}
-              href={`/incidencias?status=${status}`}
-              className="bg-white rounded-lg border border-gray-200 p-5 transition-colors hover:border-gray-300 hover:shadow-sm"
-            >
-              <div className="flex items-center gap-3">
-                <div className={cn("p-2 rounded-md", statusClass(status))}>
-                  <Icon className="h-5 w-5" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-2xl font-bold text-gray-900">
-                    {countByStatus[status] ?? 0}
-                  </p>
-                  <p className="text-sm text-gray-500 truncate">
-                    {statusLabel(status)}
-                  </p>
-                </div>
-              </div>
-            </Link>
-          );
-        })}
+        {/* Tarjetas por estado.
+            CLIENT: 4 tarjetas agrupadas (CLIENT_DASHBOARD_CARDS).
+            AGENT/ADMIN: las 6 reales del enum, sin cambios. */}
+        {isClient
+          ? CLIENT_DASHBOARD_CARDS.map((card) => {
+              const Icon = card.icon;
+              return (
+                <Link
+                  key={card.label}
+                  href={card.href}
+                  className="bg-white rounded-lg border border-gray-200 p-5 transition-colors hover:border-gray-300 hover:shadow-sm"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={cn("p-2 rounded-md", card.className)}>
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-2xl font-bold text-gray-900">
+                        {card.count}
+                      </p>
+                      <p className="text-sm text-gray-500 leading-tight">
+                        {card.label}
+                      </p>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })
+          : statusOrder.map((status) => {
+              const Icon = STATUS_ICONS[status];
+              return (
+                <Link
+                  key={status}
+                  href={`/incidencias?status=${status}`}
+                  className="bg-white rounded-lg border border-gray-200 p-5 transition-colors hover:border-gray-300 hover:shadow-sm"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={cn("p-2 rounded-md", statusClass(status))}>
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-2xl font-bold text-gray-900">
+                        {countByStatus[status] ?? 0}
+                      </p>
+                      <p className="text-sm text-gray-500 leading-tight">
+                        {statusLabel(status)}
+                      </p>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
       </div>
 
       <div className="bg-white rounded-lg border border-gray-200">
@@ -166,7 +257,8 @@ export default async function DashboardPage() {
         ) : (
           <div className="divide-y divide-gray-100">
             {recentIncidents.map((incident) => {
-              const status = STATUS_CONFIG[incident.status as keyof typeof STATUS_CONFIG];
+              const statusBadgeLabel = statusLabelFor(role, incident.status);
+              const statusBadgeClass = statusClassFor(role, incident.status);
               return (
                 <Link
                   key={incident.id}
@@ -178,16 +270,14 @@ export default async function DashboardPage() {
                       <span className="text-xs font-mono text-gray-400">
                         {incident.reference}
                       </span>
-                      {status && (
-                        <span
-                          className={cn(
-                            "inline-block px-2 py-0.5 text-xs font-medium rounded-full",
-                            status.className
-                          )}
-                        >
-                          {status.label}
-                        </span>
-                      )}
+                      <span
+                        className={cn(
+                          "inline-block px-2 py-0.5 text-xs font-medium rounded-full",
+                          statusBadgeClass
+                        )}
+                      >
+                        {statusBadgeLabel}
+                      </span>
                     </div>
                     <p className="text-sm font-medium text-gray-900 truncate mt-0.5">
                       {incident.subject}

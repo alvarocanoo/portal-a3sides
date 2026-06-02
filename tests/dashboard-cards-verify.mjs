@@ -43,6 +43,7 @@ const cliente = await prisma.user.findUnique({ where: { email: "cliente@demo.com
 const agent = await prisma.user.findUnique({ where: { email: "agente@a3sides.es" }, select: { id: true } });
 
 const createdRefs = [];
+const createdIncidentIds = [];
 console.log("Asegurando una incidencia en cada estado para el test...");
 
 for (let i = 0; i < STATUSES.length; i++) {
@@ -61,12 +62,13 @@ for (let i = 0; i < STATUSES.length; i++) {
     resolvedAt: (status === "RESOLVED" || status === "CLOSED") ? new Date() : null,
     closedAt: status === "CLOSED" ? new Date() : null,
   };
-  await prisma.incident.upsert({
+  const inc = await prisma.incident.upsert({
     where: { reference },
     update: { status, assignedToId: data.assignedToId, resolvedAt: data.resolvedAt, closedAt: data.closedAt },
     create: data,
   });
   createdRefs.push(reference);
+  createdIncidentIds.push(inc.id);
 }
 console.log(`OK: 1 incidencia por cada uno de los ${STATUSES.length} estados.\n`);
 
@@ -127,6 +129,14 @@ try {
 
 } finally {
   // Limpieza
+  // AuditLog no cascada: este test hoy no llama APIs que loggeen sobre
+  // las incidencias creadas, pero si en el futuro lo hace (PATCH /status,
+  // /assign, etc.), quedarian entradas huerfanas. Preventivo.
+  if (createdIncidentIds.length > 0) {
+    await prisma.auditLog.deleteMany({
+      where: { entityType: "Incident", entityId: { in: createdIncidentIds } },
+    });
+  }
   await prisma.incident.deleteMany({ where: { reference: { in: createdRefs } } });
   console.log(`\nDatos temporales borrados (${createdRefs.length} incidencias).`);
   await prisma.$disconnect();

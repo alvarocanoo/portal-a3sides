@@ -4,7 +4,12 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Ticket } from "lucide-react";
 import { IncidentFilters } from "@/components/incidents/incident-filters";
-import { STATUS_CONFIG } from "@/lib/incident-states";
+import {
+  expandClientStatusFilter,
+  expandStaffStatusFilter,
+  statusLabelFor,
+  statusClassFor,
+} from "@/lib/incident-states";
 import { PRIORITY_CONFIG, formatDate } from "@/lib/constants";
 
 export default async function IncidenciasPage({
@@ -14,15 +19,28 @@ export default async function IncidenciasPage({
 }) {
   const session = await requireAuth();
   const params = await searchParams;
+  const isClient = session.user.role === "CLIENT";
+
+  // El dropdown de estado emite un valor según rol:
+  //   CLIENT → 4 etiquetas agrupadas + ALL (con expandClientStatusFilter)
+  //   AGENT/ADMIN → estados reales + ALL (con expandStaffStatusFilter)
+  // En AMBOS roles, sin status = "Activas" (oculta RESOLVED/CLOSED).
+  // El usuario puede ver cerradas eligiendo "Todas (incluye cerradas)".
+  const statusFilter = isClient
+    ? expandClientStatusFilter(params.status)
+    : expandStaffStatusFilter(params.status);
 
   const result = await IncidentService.list({
     page: parseInt(params.page || "1", 10),
     limit: 20,
-    status: params.status as never,
-    priority: params.priority as never,
+    status: statusFilter,
+    // CLIENT no ve prioridad — ignoramos cualquier ?priority= que llegue.
+    priority: isClient ? undefined : (params.priority as never),
     search: params.search,
     role: session.user.role,
     companyId: session.user.companyId ?? undefined,
+    clientOrder: isClient,
+    staffOrder: !isClient,
   });
 
   return (
@@ -45,6 +63,7 @@ export default async function IncidenciasPage({
       </div>
 
       <IncidentFilters
+        role={session.user.role}
         currentStatus={params.status}
         currentPriority={params.priority}
         currentSearch={params.search}
@@ -74,11 +93,11 @@ export default async function IncidenciasPage({
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Estado
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Prioridad
-                </th>
-                {session.user.role !== "CLIENT" && (
+                {!isClient && (
                   <>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Prioridad
+                    </th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Empresa
                     </th>
@@ -94,7 +113,14 @@ export default async function IncidenciasPage({
             </thead>
             <tbody className="divide-y divide-gray-100">
               {result.items.map((incident) => {
-                const status = STATUS_CONFIG[incident.status];
+                const statusLabel = statusLabelFor(
+                  session.user.role,
+                  incident.status
+                );
+                const statusClassName = statusClassFor(
+                  session.user.role,
+                  incident.status
+                );
                 const priority = PRIORITY_CONFIG[incident.priority];
                 return (
                   <tr
@@ -126,19 +152,19 @@ export default async function IncidenciasPage({
                       <span
                         className={cn(
                           "inline-block px-2 py-0.5 text-xs font-medium rounded-full",
-                          status.className
+                          statusClassName
                         )}
                       >
-                        {status.label}
+                        {statusLabel}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
-                      <span className={cn("text-sm", priority.className)}>
-                        {priority.label}
-                      </span>
-                    </td>
-                    {session.user.role !== "CLIENT" && (
+                    {!isClient && (
                       <>
+                        <td className="px-4 py-3">
+                          <span className={cn("text-sm", priority.className)}>
+                            {priority.label}
+                          </span>
+                        </td>
                         <td className="px-4 py-3 text-sm text-gray-600">
                           {incident.company.name}
                         </td>
@@ -166,7 +192,7 @@ export default async function IncidenciasPage({
             (page) => (
               <Link
                 key={page}
-                href={`/incidencias?page=${page}${params.status ? `&status=${params.status}` : ""}${params.priority ? `&priority=${params.priority}` : ""}${params.search ? `&search=${params.search}` : ""}`}
+                href={`/incidencias?page=${page}${params.status ? `&status=${params.status}` : ""}${!isClient && params.priority ? `&priority=${params.priority}` : ""}${params.search ? `&search=${params.search}` : ""}`}
                 className={cn(
                   "px-3 py-1.5 text-sm rounded-md transition-colors",
                   page === result.page

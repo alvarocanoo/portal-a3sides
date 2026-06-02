@@ -1,12 +1,13 @@
 import { requireRole } from "@/lib/auth/helpers";
 import { UserService } from "@/services/user.service";
 import { CreateUserForm } from "@/components/admin/create-user-form";
+import { UserRowActions } from "@/components/admin/user-row-actions";
 import { prisma } from "@/lib/db";
 import { ROLE_LABELS, formatDate } from "@/lib/constants";
 import { Users } from "lucide-react";
 
 export default async function UsuariosPage() {
-  await requireRole("ADMIN");
+  const session = await requireRole("ADMIN");
 
   const [result, companies] = await Promise.all([
     UserService.list(1, 100),
@@ -60,6 +61,9 @@ export default async function UsuariosPage() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Último acceso
                 </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Acciones
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -90,6 +94,18 @@ export default async function UsuariosPage() {
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
                     {user.lastLoginAt ? formatDate(user.lastLoginAt) : "Nunca"}
+                  </td>
+                  <td className="px-4 py-3">
+                    <UserRowActions
+                      user={{
+                        id: user.id,
+                        firstName: user.firstName,
+                        lastName: user.lastName,
+                        email: user.email,
+                        isActive: user.isActive,
+                      }}
+                      isSelf={user.id === session.user.id}
+                    />
                   </td>
                 </tr>
               ))}

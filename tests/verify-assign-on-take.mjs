@@ -48,6 +48,7 @@ const admin = await prisma.user.findUnique({
 });
 
 const createdRefs = [];
+const createdIncidentIds = [];
 
 async function createIncident(suffix) {
   const reference = `INC-ASSIGN-${suffix}-${Date.now()}`;
@@ -63,6 +64,7 @@ async function createIncident(suffix) {
     },
   });
   createdRefs.push(reference);
+  createdIncidentIds.push(inc.id);
   return inc;
 }
 
@@ -182,6 +184,16 @@ try {
   pass(`Sin incidencias activas sin asignar`, inconsistent === 0, `(encontradas: ${inconsistent})`);
 } finally {
   // Limpieza
+  // 1. AuditLog (no cascada): el test llama a PATCH /status, que escribe
+  //    en AuditLog. Sin esto, las entradas quedarian huerfanas tras
+  //    borrar la incidencia. Esto era el bug real arreglado el 2026-05-29.
+  if (createdIncidentIds.length > 0) {
+    await prisma.auditLog.deleteMany({
+      where: { entityType: "Incident", entityId: { in: createdIncidentIds } },
+    });
+  }
+  // 2. StatusChange e Incident (el cascade del Incident ya borraria
+  //    StatusChange, el delete explicito es defensivo).
   for (const ref of createdRefs) {
     await prisma.statusChange.deleteMany({
       where: { incident: { reference: ref } },

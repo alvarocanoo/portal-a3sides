@@ -1,6 +1,7 @@
 import { requireRole } from "@/lib/auth/helpers";
 import { prisma } from "@/lib/db";
 import { CreateCompanyForm } from "@/components/admin/create-company-form";
+import { CompanyRowActions } from "@/components/admin/company-row-actions";
 import { Building2 } from "lucide-react";
 
 export default async function EmpresasPage() {
@@ -56,6 +57,9 @@ export default async function EmpresasPage() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Estado
                 </th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Acciones
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -86,6 +90,17 @@ export default async function EmpresasPage() {
                     >
                       {company.isActive ? "Activa" : "Inactiva"}
                     </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <CompanyRowActions
+                      company={{
+                        id: company.id,
+                        name: company.name,
+                        taxId: company.taxId,
+                        irecursosClientId: company.irecursosClientId,
+                        isActive: company.isActive,
+                      }}
+                    />
                   </td>
                 </tr>
               ))}

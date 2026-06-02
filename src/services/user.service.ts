@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { hash } from "bcryptjs";
 import { randomBytes } from "crypto";
 import type { Role } from "@prisma/client";
+import { validatePassword } from "@/lib/password-policy";
 
 interface CreateUserInput {
   email: string;
@@ -110,6 +111,7 @@ export class UserService {
   static async resetPassword(id: string) {
     const user = await prisma.user.findUnique({ where: { id } });
     if (!user) throw new Error("USER_NOT_FOUND");
+    if (!user.isActive) throw new Error("USER_INACTIVE");
 
     const tempPassword = this.generateTempPassword();
     const passwordHash = await hash(tempPassword, 12);
@@ -119,10 +121,29 @@ export class UserService {
       data: { passwordHash, mustChangePassword: true },
     });
 
-    return { email: user.email, tempPassword };
+    return {
+      email: user.email,
+      firstName: user.firstName,
+      tempPassword,
+    };
   }
 
+  /**
+   * Genera una contraseña temporal de 18 chars base64url. El alfabeto
+   * base64url (A-Z, a-z, 0-9, -, _) hace que cualquier muestra de ese
+   * tamaño contenga con altísima probabilidad mayúsculas + minúsculas +
+   * dígitos. Aun así, verificamos contra la política y reintentamos si
+   * por azar no la cumple. Como cinturón-y-tirantes, en el improbable
+   * caso de fallar 10 reintentos, construimos un fallback determinista
+   * que la cumple por diseño.
+   */
   private static generateTempPassword(): string {
-    return randomBytes(12).toString("base64url").slice(0, 16);
+    for (let i = 0; i < 10; i++) {
+      const pw = randomBytes(15).toString("base64url").slice(0, 18);
+      if (validatePassword(pw).valid) return pw;
+    }
+    // Fallback prácticamente inalcanzable
+    const tail = "A1a"; // garantiza upper + digit + lower
+    return randomBytes(15).toString("base64url").slice(0, 15) + tail;
   }
 }

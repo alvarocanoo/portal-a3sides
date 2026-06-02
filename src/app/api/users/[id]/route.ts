@@ -25,6 +25,17 @@ export async function PATCH(
       );
     }
 
+    // ── Auto-protección: un ADMIN no puede desactivarse a sí mismo ─────
+    // Evita que un admin se bloquee la cuenta accidentalmente desde la UI.
+    // Para reactivar, otro admin debe hacerlo (o intervenir en BD).
+    // ──────────────────────────────────────────────────────────────────
+    if (id === session.user.id && parsed.data.isActive === false) {
+      return NextResponse.json(
+        { error: "No puedes desactivarte a ti mismo" },
+        { status: 400 }
+      );
+    }
+
     const user = await UserService.update(id, parsed.data);
 
     await AuditService.log({

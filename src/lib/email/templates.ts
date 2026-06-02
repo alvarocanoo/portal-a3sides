@@ -2,6 +2,25 @@ import { statusLabel } from "@/lib/incident-states";
 
 const BASE_URL = process.env.AUTH_URL || "http://localhost:3000";
 
+/**
+ * Escapa los 5 caracteres con significado especial en HTML para evitar que
+ * datos introducidos por el usuario (asunto de incidencia, contenido de
+ * mensaje, nombre de empresa, etc.) se interpreten como markup en el cuerpo
+ * del email. Se aplica SOLO a interpolaciones que provengan de input de
+ * usuario; las partes que son HTML literal de la plantilla se dejan tal cual.
+ *
+ * No se aplica al subject del email (cabecera RFC 5322, plain text — los
+ * entities &lt; se verian literalmente en la bandeja de entrada).
+ */
+function escapeHtml(value: string | number): string {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function layout(content: string): string {
   return `
 <!DOCTYPE html>
@@ -33,13 +52,13 @@ export function incidentCreatedClient(data: {
     subject: `[${data.reference}] Incidencia recibida: ${data.subject}`,
     html: layout(`
       <h2 style="margin:0 0 16px;color:#111827;font-size:18px">Incidencia recibida</h2>
-      <p style="color:#4b5563;margin:0 0 12px">Hemos recibido tu incidencia <strong>${data.reference}</strong>.</p>
+      <p style="color:#4b5563;margin:0 0 12px">Hemos recibido tu incidencia <strong>${escapeHtml(data.reference)}</strong>.</p>
       <p style="color:#4b5563;margin:0 0 16px">Nuestro equipo la revisará lo antes posible.</p>
       <div style="background:#f9fafb;border-radius:6px;padding:12px 16px;margin:0 0 16px">
         <p style="margin:0;font-size:14px;color:#6b7280">Asunto</p>
-        <p style="margin:4px 0 0;font-size:15px;color:#111827;font-weight:500">${data.subject}</p>
+        <p style="margin:4px 0 0;font-size:15px;color:#111827;font-weight:500">${escapeHtml(data.subject)}</p>
       </div>
-      <a href="${BASE_URL}/incidencias/${data.incidentId}" style="display:inline-block;background:#275d6b;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500">Ver incidencia</a>
+      <a href="${BASE_URL}/incidencias/${encodeURIComponent(data.incidentId)}" style="display:inline-block;background:#275d6b;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500">Ver incidencia</a>
     `),
   };
 }
@@ -55,12 +74,12 @@ export function incidentCreatedAgent(data: {
     subject: `[${data.reference}] Nueva incidencia de ${data.companyName}`,
     html: layout(`
       <h2 style="margin:0 0 16px;color:#111827;font-size:18px">Nueva incidencia</h2>
-      <p style="color:#4b5563;margin:0 0 16px">${data.createdBy} de <strong>${data.companyName}</strong> ha abierto una incidencia.</p>
+      <p style="color:#4b5563;margin:0 0 16px">${escapeHtml(data.createdBy)} de <strong>${escapeHtml(data.companyName)}</strong> ha abierto una incidencia.</p>
       <div style="background:#f9fafb;border-radius:6px;padding:12px 16px;margin:0 0 16px">
-        <p style="margin:0;font-size:14px;color:#6b7280">${data.reference}</p>
-        <p style="margin:4px 0 0;font-size:15px;color:#111827;font-weight:500">${data.subject}</p>
+        <p style="margin:0;font-size:14px;color:#6b7280">${escapeHtml(data.reference)}</p>
+        <p style="margin:4px 0 0;font-size:15px;color:#111827;font-weight:500">${escapeHtml(data.subject)}</p>
       </div>
-      <a href="${BASE_URL}/incidencias/${data.incidentId}" style="display:inline-block;background:#275d6b;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500">Abrir incidencia</a>
+      <a href="${BASE_URL}/incidencias/${encodeURIComponent(data.incidentId)}" style="display:inline-block;background:#275d6b;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500">Abrir incidencia</a>
     `),
   };
 }
@@ -72,16 +91,22 @@ export function newMessageNotification(data: {
   preview: string;
   incidentId: string;
 }): { subject: string; html: string } {
+  // Truncar PRIMERO sobre la cadena cruda, luego escapar el resultado.
+  // Si se truncara despues de escapar, un slice podria cortar a la mitad
+  // un entity (p.ej. "&am" en vez de "&amp;").
+  const previewRaw = data.preview.slice(0, 200);
+  const previewSuffix = data.preview.length > 200 ? "..." : "";
+
   return {
     subject: `[${data.reference}] Nuevo mensaje de ${data.authorName}`,
     html: layout(`
       <h2 style="margin:0 0 16px;color:#111827;font-size:18px">Nuevo mensaje</h2>
-      <p style="color:#4b5563;margin:0 0 16px"><strong>${data.authorName}</strong> ha respondido en la incidencia <strong>${data.reference}</strong>.</p>
+      <p style="color:#4b5563;margin:0 0 16px"><strong>${escapeHtml(data.authorName)}</strong> ha respondido en la incidencia <strong>${escapeHtml(data.reference)}</strong>.</p>
       <div style="background:#f9fafb;border-radius:6px;padding:12px 16px;margin:0 0 16px">
-        <p style="margin:0;font-size:14px;color:#6b7280">${data.subject}</p>
-        <p style="margin:8px 0 0;font-size:14px;color:#374151">${data.preview.slice(0, 200)}${data.preview.length > 200 ? "..." : ""}</p>
+        <p style="margin:0;font-size:14px;color:#6b7280">${escapeHtml(data.subject)}</p>
+        <p style="margin:8px 0 0;font-size:14px;color:#374151">${escapeHtml(previewRaw)}${previewSuffix}</p>
       </div>
-      <a href="${BASE_URL}/incidencias/${data.incidentId}" style="display:inline-block;background:#275d6b;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500">Ver conversación</a>
+      <a href="${BASE_URL}/incidencias/${encodeURIComponent(data.incidentId)}" style="display:inline-block;background:#275d6b;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500">Ver conversación</a>
     `),
   };
 }
@@ -92,16 +117,18 @@ export function statusChangedNotification(data: {
   newStatus: string;
   incidentId: string;
 }): { subject: string; html: string } {
+  // statusLabel() devuelve siempre de un mapa fijo conocido — no es user input.
+  const label = statusLabel(data.newStatus);
   return {
-    subject: `[${data.reference}] Estado actualizado: ${statusLabel(data.newStatus)}`,
+    subject: `[${data.reference}] Estado actualizado: ${label}`,
     html: layout(`
       <h2 style="margin:0 0 16px;color:#111827;font-size:18px">Estado actualizado</h2>
-      <p style="color:#4b5563;margin:0 0 16px">La incidencia <strong>${data.reference}</strong> ha cambiado de estado.</p>
+      <p style="color:#4b5563;margin:0 0 16px">La incidencia <strong>${escapeHtml(data.reference)}</strong> ha cambiado de estado.</p>
       <div style="background:#f9fafb;border-radius:6px;padding:12px 16px;margin:0 0 16px">
-        <p style="margin:0;font-size:14px;color:#6b7280">${data.subject}</p>
-        <p style="margin:8px 0 0;font-size:16px;color:#111827;font-weight:600">${statusLabel(data.newStatus)}</p>
+        <p style="margin:0;font-size:14px;color:#6b7280">${escapeHtml(data.subject)}</p>
+        <p style="margin:8px 0 0;font-size:16px;color:#111827;font-weight:600">${label}</p>
       </div>
-      <a href="${BASE_URL}/incidencias/${data.incidentId}" style="display:inline-block;background:#275d6b;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500">Ver incidencia</a>
+      <a href="${BASE_URL}/incidencias/${encodeURIComponent(data.incidentId)}" style="display:inline-block;background:#275d6b;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500">Ver incidencia</a>
     `),
   };
 }
@@ -114,14 +141,35 @@ export function userInvitation(data: {
   return {
     subject: "Bienvenido al Portal de Soporte de a3sides",
     html: layout(`
-      <h2 style="margin:0 0 16px;color:#111827;font-size:18px">Bienvenido, ${data.firstName}</h2>
+      <h2 style="margin:0 0 16px;color:#111827;font-size:18px">Bienvenido, ${escapeHtml(data.firstName)}</h2>
       <p style="color:#4b5563;margin:0 0 16px">Se ha creado tu cuenta en el Portal de Soporte de a3sides.</p>
       <div style="background:#f9fafb;border-radius:6px;padding:12px 16px;margin:0 0 16px">
         <p style="margin:0;font-size:14px;color:#6b7280">Tus credenciales de acceso</p>
-        <p style="margin:8px 0 4px;font-size:14px;color:#374151"><strong>Email:</strong> ${data.email}</p>
-        <p style="margin:0;font-size:14px;color:#374151"><strong>Contraseña temporal:</strong> <code style="background:#e5e7eb;padding:2px 6px;border-radius:4px">${data.tempPassword}</code></p>
+        <p style="margin:8px 0 4px;font-size:14px;color:#374151"><strong>Email:</strong> ${escapeHtml(data.email)}</p>
+        <p style="margin:0;font-size:14px;color:#374151"><strong>Contraseña temporal:</strong> <code style="background:#e5e7eb;padding:2px 6px;border-radius:4px">${escapeHtml(data.tempPassword)}</code></p>
       </div>
       <p style="color:#4b5563;margin:0 0 16px;font-size:14px">Deberás cambiar la contraseña en tu primer acceso.</p>
+      <a href="${BASE_URL}/login" style="display:inline-block;background:#275d6b;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500">Acceder al portal</a>
+    `),
+  };
+}
+
+export function passwordReset(data: {
+  firstName: string;
+  email: string;
+  tempPassword: string;
+}): { subject: string; html: string } {
+  return {
+    subject: "Tu contraseña ha sido restablecida — Portal de Soporte a3sides",
+    html: layout(`
+      <h2 style="margin:0 0 16px;color:#111827;font-size:18px">Hola, ${escapeHtml(data.firstName)}</h2>
+      <p style="color:#4b5563;margin:0 0 16px">Un administrador ha restablecido la contraseña de tu cuenta en el Portal de Soporte de a3sides.</p>
+      <div style="background:#f9fafb;border-radius:6px;padding:12px 16px;margin:0 0 16px">
+        <p style="margin:0;font-size:14px;color:#6b7280">Nuevas credenciales</p>
+        <p style="margin:8px 0 4px;font-size:14px;color:#374151"><strong>Email:</strong> ${escapeHtml(data.email)}</p>
+        <p style="margin:0;font-size:14px;color:#374151"><strong>Contraseña temporal:</strong> <code style="background:#e5e7eb;padding:2px 6px;border-radius:4px">${escapeHtml(data.tempPassword)}</code></p>
+      </div>
+      <p style="color:#4b5563;margin:0 0 16px;font-size:14px">Deberás cambiar esta contraseña en tu próximo acceso. Si no has solicitado este cambio, contacta con el administrador inmediatamente.</p>
       <a href="${BASE_URL}/login" style="display:inline-block;background:#275d6b;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500">Acceder al portal</a>
     `),
   };
