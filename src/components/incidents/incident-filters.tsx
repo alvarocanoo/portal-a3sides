@@ -15,6 +15,9 @@ interface Props {
   currentStatus?: string;
   currentPriority?: string;
   currentSearch?: string;
+  // Filtro "Asignadas a mí" — solo STAFF lo ve y lo emite. Se serializa
+  // únicamente cuando vale "me"; cualquier otro valor en URL se ignora.
+  currentAssigned?: string;
 }
 
 const SEARCH_DEBOUNCE_MS = 400;
@@ -24,6 +27,7 @@ export function IncidentFilters({
   currentStatus,
   currentPriority,
   currentSearch,
+  currentAssigned,
 }: Props) {
   // Tanto CLIENT como AGENT/ADMIN tienen ahora "Activas" como default y
   // una opción "Todas (incluye cerradas)" — única diferencia: CLIENT ve
@@ -43,6 +47,7 @@ export function IncidentFilters({
     status?: string;
     priority?: string;
     search?: string;
+    assigned?: string;
   }): string {
     const params = new URLSearchParams();
 
@@ -57,10 +62,22 @@ export function IncidentFilters({
         : currentPriority || "";
     const searchVal =
       overrides.search !== undefined ? overrides.search : currentSearch || "";
+    // Mismo blindaje que priority: CLIENT lo fuerza a "" para que ni
+    // siquiera reaparezca si el usuario lo metió a mano en la URL. STAFF
+    // acepta el override; sin él, hereda el currentAssigned.
+    const assigned = isClient
+      ? ""
+      : overrides.assigned !== undefined
+        ? overrides.assigned
+        : currentAssigned || "";
 
     if (status) params.set("status", status);
     if (priority) params.set("priority", priority);
     if (searchVal) params.set("search", searchVal);
+    // Solo serializamos el valor canónico "me". Cualquier otro string
+    // (basura, vacío, foo) no se propaga — evita que valores inválidos
+    // de URL "se peguen" al navegar entre filtros.
+    if (assigned === "me") params.set("assigned", "me");
 
     const qs = params.toString();
     return `${pathname}${qs ? `?${qs}` : ""}`;
@@ -182,6 +199,42 @@ export function IncidentFilters({
               </option>
             ))}
           </select>
+        )}
+
+        {/* Toggle "Asignadas a mí": dos botones segmentados, solo STAFF.
+            Activo = fondo teal + texto blanco (mismo patrón que la
+            paginación activa en la lista). Inactivo = borde gris. */}
+        {!isClient && (
+          <div
+            role="group"
+            aria-label="Filtrar por asignación"
+            className="inline-flex rounded-md border border-gray-300 overflow-hidden"
+          >
+            <button
+              type="button"
+              onClick={() => navigate(buildUrl({ assigned: "" }))}
+              aria-pressed={currentAssigned !== "me"}
+              className={
+                currentAssigned !== "me"
+                  ? "px-3 py-2 text-sm bg-[#275d6b] text-white"
+                  : "px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
+              }
+            >
+              Todas
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate(buildUrl({ assigned: "me" }))}
+              aria-pressed={currentAssigned === "me"}
+              className={
+                currentAssigned === "me"
+                  ? "px-3 py-2 text-sm bg-[#275d6b] text-white border-l border-[#275d6b]"
+                  : "px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 border-l border-gray-300"
+              }
+            >
+              Asignadas a mí
+            </button>
+          </div>
         )}
 
         {hasFilters && (

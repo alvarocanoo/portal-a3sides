@@ -31,6 +31,12 @@ export default async function IncidenciasPage({
     ? expandClientStatusFilter(params.status)
     : expandStaffStatusFilter(params.status);
 
+  // Filtro "Asignadas a mí": SOLO staff. Si un CLIENT mete ?assigned=me a
+  // mano en la URL lo ignoramos completamente — su scope sigue siendo su
+  // empresa (where.companyId aplicado en el servicio). Doble blindaje:
+  // aquí + en el componente de filtros (que tampoco lo emite si isClient).
+  const assignedToMe = !isClient && params.assigned === "me";
+
   const result = await IncidentService.list({
     page: parseInt(params.page || "1", 10),
     limit: 20,
@@ -38,6 +44,7 @@ export default async function IncidenciasPage({
     // CLIENT no ve prioridad — ignoramos cualquier ?priority= que llegue.
     priority: isClient ? undefined : (params.priority as never),
     search: params.search,
+    assignedToId: assignedToMe ? session.user.id : undefined,
     role: session.user.role,
     companyId: session.user.companyId ?? undefined,
     clientOrder: isClient,
@@ -78,6 +85,7 @@ export default async function IncidenciasPage({
           currentStatus={params.status}
           currentPriority={params.priority}
           currentSearch={params.search}
+          currentAssigned={params.assigned}
         />
       </Suspense>
 
@@ -233,7 +241,7 @@ export default async function IncidenciasPage({
             (page) => (
               <Link
                 key={page}
-                href={`/incidencias?page=${page}${params.status ? `&status=${params.status}` : ""}${!isClient && params.priority ? `&priority=${params.priority}` : ""}${params.search ? `&search=${params.search}` : ""}`}
+                href={`/incidencias?page=${page}${params.status ? `&status=${params.status}` : ""}${!isClient && params.priority ? `&priority=${params.priority}` : ""}${params.search ? `&search=${params.search}` : ""}${assignedToMe ? `&assigned=me` : ""}`}
                 className={cn(
                   "px-3 py-1.5 text-sm rounded-md transition-colors",
                   page === result.page
