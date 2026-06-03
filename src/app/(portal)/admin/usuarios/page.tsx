@@ -3,7 +3,7 @@ import { UserService } from "@/services/user.service";
 import { CreateUserForm } from "@/components/admin/create-user-form";
 import { UserRowActions } from "@/components/admin/user-row-actions";
 import { prisma } from "@/lib/db";
-import { ROLE_LABELS, formatDate } from "@/lib/constants";
+import { ROLE_LABELS, formatDateTime, formatRelative } from "@/lib/constants";
 import { Users } from "lucide-react";
 
 export default async function UsuariosPage() {
@@ -93,7 +93,16 @@ export default async function UsuariosPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
-                    {user.lastLoginAt ? formatDate(user.lastLoginAt) : "Nunca"}
+                    {user.lastLoginAt ? (
+                      // Fecha relativa para identificar al instante quién
+                      // está activo ahora vs. quién hace tiempo que no
+                      // entra. Absoluta en el tooltip para comprobar.
+                      <span title={formatDateTime(user.lastLoginAt)}>
+                        {formatRelative(user.lastLoginAt)}
+                      </span>
+                    ) : (
+                      "Nunca"
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <UserRowActions
