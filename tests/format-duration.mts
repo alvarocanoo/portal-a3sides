@@ -26,9 +26,19 @@ const DAY = 24 * HOUR;
 
 console.log("=== formatDuration (ms) ===\n");
 
-// Minutos
-eq("0ms → 0min", formatDuration(0), "0min");
-eq("30s → 0min", formatDuration(30_000), "0min");
+// 0 exacto y datos inválidos → "0min" (caso defensivo, entrada degenerada).
+// 0 ms se considera "sin tiempo medible" — agrupado con dato inválido, no con
+// duración real corta. Solo el rango (0, 60_000) abierto en 0 y cerrado-abajo
+// devuelve "< 1min".
+eq("0ms exacto → 0min (defensivo / sin tiempo medible)", formatDuration(0), "0min");
+
+// Duraciones REALES cortas (entre 1ms y 59 999 ms) → "< 1min".
+// Comunica "fue muy rápido" sin parecer un cero engañoso.
+eq("1ms → < 1min", formatDuration(1), "< 1min");
+eq("30s → < 1min", formatDuration(30_000), "< 1min");
+eq("59s → < 1min", formatDuration(59_999), "< 1min");
+
+// 1 minuto exacto → "1min" (cruza el umbral).
 eq("1min", formatDuration(1 * MIN), "1min");
 eq("45min", formatDuration(45 * MIN), "45min");
 eq("59min", formatDuration(59 * MIN), "59min");

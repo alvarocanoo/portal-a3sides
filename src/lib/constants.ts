@@ -56,9 +56,18 @@ export function formatDateTime(date: Date | string): string {
 // ─── Duraciones (SLA: tiempo entre dos eventos) ─────────
 //
 // Devuelve la duración en español compacto. Mismos cortes que usaríamos
-// al hablar: "45min", "2h 15min", "1d 4h", "5d" (sin horas si son muchos
-// días). Siempre se redondea hacia abajo (no exageramos los tiempos).
-// 0 o negativo → "0min" (defensivo; no debería pasar).
+// al hablar: "< 1min", "45min", "2h 15min", "1d 4h", "5d" (sin horas si
+// son muchos días). Siempre se redondea hacia abajo (no exageramos los
+// tiempos).
+//
+// Distinción explícita:
+//   - "< 1min" → duración REAL corta (entre 1ms y 59 999 ms). Comunica
+//     "fue muy rápido" sin parecer un cero engañoso.
+//   - "0min"   → dato inválido o defensivo: ms <= 0, NaN, no finito,
+//     o solo un argumento Date sin `end`. Cubre ENTRADAS MALAS, no
+//     duraciones cortas legítimas.
+//   - 0 exacto se considera "sin tiempo medible" (degenerado), agrupado
+//     con el caso defensivo → "0min". No es una duración corta.
 //
 // Toma dos fechas o un número de milisegundos:
 //   formatDuration(start, end)
@@ -81,6 +90,7 @@ export function formatDuration(
   if (!isFinite(ms) || ms <= 0) return "0min";
 
   const minutes = Math.floor(ms / 60_000);
+  if (minutes === 0) return "< 1min";
   if (minutes < 60) return `${minutes}min`;
 
   const hours = Math.floor(minutes / 60);
