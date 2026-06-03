@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { AuditService } from "@/services/audit.service";
+import { getRequestContext } from "@/lib/request-context";
 import { createCompanySchema } from "@/lib/validators/user";
 
 export async function GET() {
@@ -48,12 +49,15 @@ export async function POST(request: Request) {
       data: parsed.data,
     });
 
+    const { ipAddress, userAgent } = getRequestContext(request);
     await AuditService.log({
       action: "company.create",
       userId: session.user.id,
       entityType: "Company",
       entityId: company.id,
       metadata: { name: company.name },
+      ipAddress,
+      userAgent,
     });
 
     return NextResponse.json(company, { status: 201 });

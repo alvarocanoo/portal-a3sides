@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { IncidentService } from "@/services/incident.service";
 import { AuditService } from "@/services/audit.service";
+import { getRequestContext } from "@/lib/request-context";
 import { NotificationService } from "@/services/notification.service";
 import { updateIncidentStatusSchema } from "@/lib/validators/incident";
 
@@ -35,12 +36,15 @@ export async function PATCH(
       parsed.data.reason
     );
 
+    const { ipAddress, userAgent } = getRequestContext(request);
     await AuditService.log({
       action: "incident.status_change",
       userId: session.user.id,
       entityType: "Incident",
       entityId: id,
       metadata: { reference: updated.reference, newStatus: parsed.data.status, reason: parsed.data.reason },
+      ipAddress,
+      userAgent,
     });
 
     NotificationService.onStatusChanged(id, parsed.data.status).catch(console.error);

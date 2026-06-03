@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { UserService } from "@/services/user.service";
 import { AuditService } from "@/services/audit.service";
+import { getRequestContext } from "@/lib/request-context";
 import { updateUserSchema } from "@/lib/validators/user";
 
 export async function PATCH(
@@ -38,12 +39,15 @@ export async function PATCH(
 
     const user = await UserService.update(id, parsed.data);
 
+    const { ipAddress, userAgent } = getRequestContext(request);
     await AuditService.log({
       action: "user.update",
       userId: session.user.id,
       entityType: "User",
       entityId: id,
       metadata: parsed.data,
+      ipAddress,
+      userAgent,
     });
 
     return NextResponse.json(user);

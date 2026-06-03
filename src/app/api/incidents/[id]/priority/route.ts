@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { IncidentService } from "@/services/incident.service";
 import { AuditService } from "@/services/audit.service";
+import { getRequestContext } from "@/lib/request-context";
 import { updateIncidentPrioritySchema } from "@/lib/validators/incident";
 
 /**
@@ -54,6 +55,7 @@ export async function PATCH(
     );
 
     if (result.changed) {
+      const { ipAddress, userAgent } = getRequestContext(request);
       await AuditService.log({
         action: "incident.priority.change",
         userId: session.user.id,
@@ -64,6 +66,8 @@ export async function PATCH(
           fromPriority: result.fromPriority,
           toPriority: result.toPriority,
         },
+        ipAddress,
+        userAgent,
       });
     }
 

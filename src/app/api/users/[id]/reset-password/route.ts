@@ -2,11 +2,12 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { UserService } from "@/services/user.service";
 import { AuditService } from "@/services/audit.service";
+import { getRequestContext } from "@/lib/request-context";
 import { sendEmail } from "@/lib/email";
 import { passwordReset } from "@/lib/email/templates";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -20,6 +21,7 @@ export async function POST(
     // ── Reset: genera nueva temporal, fuerza cambio en próximo login ──
     const { email, firstName, tempPassword } = await UserService.resetPassword(id);
 
+    const { ipAddress, userAgent } = getRequestContext(request);
     await AuditService.log({
       action: "user.password_reset",
       userId: session.user.id,
@@ -28,6 +30,8 @@ export async function POST(
       // Email es útil para identificar al usuario en el log; tempPassword
       // NUNCA se loguea (se envía al usuario por email).
       metadata: { email },
+      ipAddress,
+      userAgent,
     });
 
     // ── Envío síncrono del email (mismo patrón que create-user) ───────

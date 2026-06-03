@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { IncidentService } from "@/services/incident.service";
 import { AuditService } from "@/services/audit.service";
+import { getRequestContext } from "@/lib/request-context";
 import { NotificationService } from "@/services/notification.service";
 import {
   createIncidentSchema,
@@ -98,12 +99,15 @@ export async function POST(request: Request) {
       createdById: session.user.id,
     });
 
+    const { ipAddress, userAgent } = getRequestContext(request);
     await AuditService.log({
       action: "incident.create",
       userId: session.user.id,
       entityType: "Incident",
       entityId: incident.id,
       metadata: { reference: incident.reference },
+      ipAddress,
+      userAgent,
     });
 
     NotificationService.onIncidentCreated(incident.id).catch(console.error);

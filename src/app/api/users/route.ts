@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { UserService } from "@/services/user.service";
 import { AuditService } from "@/services/audit.service";
+import { getRequestContext } from "@/lib/request-context";
 import { createUserSchema } from "@/lib/validators/user";
 import { sendEmail } from "@/lib/email";
 import { userInvitation } from "@/lib/email/templates";
@@ -47,12 +48,15 @@ export async function POST(request: Request) {
 
     const { user, tempPassword } = await UserService.create(parsed.data);
 
+    const { ipAddress, userAgent } = getRequestContext(request);
     await AuditService.log({
       action: "user.create",
       userId: session.user.id,
       entityType: "User",
       entityId: user.id,
       metadata: { email: user.email, role: user.role },
+      ipAddress,
+      userAgent,
     });
 
     // ── Envío del email de invitación con la contraseña temporal ────────

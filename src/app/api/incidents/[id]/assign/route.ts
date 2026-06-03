@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { IncidentService } from "@/services/incident.service";
 import { AuditService } from "@/services/audit.service";
+import { getRequestContext } from "@/lib/request-context";
 import { NotificationService } from "@/services/notification.service";
 import { assignIncidentSchema } from "@/lib/validators/incident";
 
@@ -40,12 +41,15 @@ export async function PATCH(
       session.user.id
     );
 
+    const { ipAddress, userAgent } = getRequestContext(request);
     await AuditService.log({
       action: "incident.assign",
       userId: session.user.id,
       entityType: "Incident",
       entityId: id,
       metadata: { reference: updated.reference, assignedToId: parsed.data.assignedToId },
+      ipAddress,
+      userAgent,
     });
 
     // Notificar al nuevo asignado (fire-and-forget). No se hace si el
