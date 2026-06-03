@@ -18,6 +18,36 @@ const ACTION_LABELS: Record<string, string> = {
 
 type AuditItem = Awaited<ReturnType<typeof AuditService.list>>["items"][number];
 
+// Resumen corto del user-agent para la columna "Origen".
+// Pensado para identificar de un vistazo cliente común sin librería. El UA
+// completo SIEMPRE queda accesible en el tooltip `title` de la celda, así
+// que aquí basta con cubrir los casos habituales y devolver null si no se
+// reconoce — la UI muestra "Cliente desconocido" en ese caso.
+//
+// Orden de checks importa: Edge envía "Chrome/" en su UA, así que hay que
+// detectarlo ANTES que Chrome. Chrome a su vez envía "Safari/", igual.
+function summarizeUserAgent(ua: string | null): string | null {
+  if (!ua) return null;
+
+  let browser: string | null = null;
+  if (ua.includes("Edg/")) browser = "Edge";
+  else if (ua.includes("Firefox/")) browser = "Firefox";
+  else if (ua.includes("Chrome/")) browser = "Chrome";
+  else if (ua.includes("Safari/")) browser = "Safari";
+
+  let os: string | null = null;
+  // iPhone/iPad antes que Mac (iPadOS 13+ envía UA tipo macOS, no hay
+  // manera fiable de distinguir desde el UA, lo aceptamos).
+  if (ua.includes("iPhone") || ua.includes("iPad")) os = "iOS";
+  else if (ua.includes("Android")) os = "Android";
+  else if (ua.includes("Windows")) os = "Windows";
+  else if (ua.includes("Mac OS X") || ua.includes("Macintosh")) os = "macOS";
+  else if (ua.includes("Linux")) os = "Linux";
+
+  if (browser && os) return `${browser} / ${os}`;
+  return browser || os;
+}
+
 function formatEntity(item: AuditItem): string {
   const m = item.metadata as Record<string, unknown> | null;
   const ref = (m?.reference as string) || item._incidentRef;
@@ -140,6 +170,9 @@ export default async function AuditPage({
                   Acción
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Origen
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Entidad
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -160,6 +193,19 @@ export default async function AuditPage({
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-700">
                     {ACTION_LABELS[log.action] || log.action}
+                  </td>
+                  <td
+                    className="px-4 py-3 text-sm text-gray-700 whitespace-nowrap"
+                    // El UA completo va en title para inspección manual al
+                    // hacer hover. Si no hay UA, sin tooltip.
+                    title={log.userAgent ?? undefined}
+                  >
+                    {log.ipAddress ?? "—"}
+                    {log.userAgent && (
+                      <div className="text-xs text-gray-400">
+                        {summarizeUserAgent(log.userAgent) ?? "Cliente desconocido"}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-700">
                     {formatEntity(log)}
