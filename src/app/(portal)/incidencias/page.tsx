@@ -134,10 +134,28 @@ export default async function IncidenciasPage({
                   incident.status
                 );
                 const priority = PRIORITY_CONFIG[incident.priority];
+                // Jerarquía visual SOLO para staff:
+                //   - Sin asignar y activa → resaltada (borde teal + bg sutil).
+                //   - Cerrada/Resuelta    → atenuada (opacity-70) para que
+                //                           "pese" menos cuando se ven mezcladas.
+                //   - Asignada y activa   → sin cambios respecto a antes.
+                // CLIENT no entra en estas variantes: !isClient en isUnassignedActive
+                // y, aunque tenga isDone, su lista no rinde la columna Asignado y
+                // la opacidad afecta uniformemente — aceptable porque su default
+                // ya es "Activas" (cerradas ocultas salvo que las pida).
+                const isDone =
+                  incident.status === "RESOLVED" || incident.status === "CLOSED";
+                const isUnassignedActive =
+                  !isClient && !incident.assignedTo && !isDone;
                 return (
                   <tr
                     key={incident.id}
-                    className="hover:bg-gray-50 transition-colors"
+                    className={cn(
+                      "hover:bg-gray-50 transition-colors",
+                      isUnassignedActive &&
+                        "border-l-2 border-l-[#275d6b] bg-[#275d6b]/[0.03]",
+                      isDone && "opacity-70"
+                    )}
                   >
                     <td className="px-4 py-3">
                       <Link
@@ -181,9 +199,20 @@ export default async function IncidenciasPage({
                           {incident.company.name}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-500">
-                          {incident.assignedTo
-                            ? `${incident.assignedTo.firstName} ${incident.assignedTo.lastName}`
-                            : "—"}
+                          {incident.assignedTo ? (
+                            `${incident.assignedTo.firstName} ${incident.assignedTo.lastName}`
+                          ) : isDone ? (
+                            // Cerrada sin asignado → "—" neutral.
+                            // No comunica urgencia (no la hay).
+                            "—"
+                          ) : (
+                            // Activa sin asignar → badge ámbar sutil que
+                            // comunica "necesita acción", en lugar del "—"
+                            // genérico que se confundía con "vacío".
+                            <span className="inline-block px-2 py-0.5 text-xs rounded-md bg-amber-50 text-amber-700 border border-amber-200">
+                              Sin asignar
+                            </span>
+                          )}
                         </td>
                       </>
                     )}
