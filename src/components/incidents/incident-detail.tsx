@@ -495,10 +495,12 @@ export function IncidentDetail({
         <div
           className={cn(
             "mt-4 grid gap-4 text-sm",
-            // CLIENT no ve Prioridad → 3 columnas (Categoría, Creado por,
-            // Asignado a). AGENT/ADMIN ven las 4 originales.
+            // CLIENT no ve Prioridad ni Empresa → 3 campos (Categoría,
+            // Creado por, Asignado a) en 3 columnas.
+            // AGENT/ADMIN ven 5 campos (Prioridad, Categoría, Creado por,
+            // Asignado a, Empresa) en 3 columnas (3 arriba + 2 abajo en sm+).
             canChangePriority
-              ? "grid-cols-2 sm:grid-cols-4"
+              ? "grid-cols-2 sm:grid-cols-3"
               : "grid-cols-1 sm:grid-cols-3"
           )}
         >
@@ -563,14 +565,17 @@ export function IncidentDetail({
               </p>
             )}
           </div>
+          {/* Empresa: dentro del grid como campo más, solo AGENT/ADMIN.
+              Antes estaba como línea suelta debajo del grid, quedaba
+              descolgada. Mismo formato que los otros campos (label gris
+              arriba, valor font-medium debajo). */}
+          {currentUser.role !== "CLIENT" && (
+            <div>
+              <p className="text-gray-500">Empresa</p>
+              <p className="font-medium">{incident.company.name}</p>
+            </div>
+          )}
         </div>
-
-        {currentUser.role !== "CLIENT" && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            <p className="text-gray-500 text-sm">Empresa:</p>
-            <p className="text-sm font-medium">{incident.company.name}</p>
-          </div>
-        )}
 
         {/* Chips de SLA — SOLO AGENT/ADMIN. El CLIENT no ve métricas
             internas de tiempos (mismo criterio que con la prioridad).
@@ -789,7 +794,7 @@ function SlaChips({
 
   return (
     <div className="mt-4 pt-4 border-t border-gray-100 flex flex-wrap items-center gap-2">
-      <span className="text-xs text-gray-400 uppercase tracking-wider mr-1">SLA</span>
+      <span className="text-xs text-gray-400 uppercase tracking-wider mr-1">Tiempos</span>
 
       {/* Chip 1: tiempo hasta primera respuesta */}
       {firstResponseAt ? (
