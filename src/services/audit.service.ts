@@ -26,23 +26,12 @@ export interface ListAuditFilters {
 }
 
 export class AuditService {
-  static async log(input: AuditInput) {
-    return prisma.auditLog.create({
-      data: {
-        action: input.action,
-        userId: input.userId,
-        entityType: input.entityType,
-        entityId: input.entityId,
-        metadata: input.metadata ? JSON.parse(JSON.stringify(input.metadata)) : undefined,
-        ipAddress: input.ipAddress,
-        userAgent: input.userAgent,
-      },
-    });
-  }
-
-  static async list(page = 1, limit = 50, filters: ListAuditFilters = {}) {
-    // where compartido por findMany y count para que totalPages sea
-    // coherente con el filtro (el bug clásico es contar SIN filtros).
+  // Construcción del where compartida por list() y listForExport(). Si en
+  // el futuro se añade un filtro nuevo, basta con tocarlo aquí y los dos
+  // consumidores quedan coherentes.
+  private static buildAuditWhere(
+    filters: ListAuditFilters
+  ): Prisma.AuditLogWhereInput {
     const where: Prisma.AuditLogWhereInput = {};
 
     if (filters.action) where.action = filters.action;
@@ -50,7 +39,6 @@ export class AuditService {
     if (filters.dateFrom || filters.dateTo) {
       where.createdAt = {
         ...(filters.dateFrom && { gte: filters.dateFrom }),
-        // dateTo ya viene exclusivo (inicio del día siguiente) → lt.
         ...(filters.dateTo && { lt: filters.dateTo }),
       };
     }
@@ -65,21 +53,20 @@ export class AuditService {
       };
     }
 
-    const [items, total] = await Promise.all([
-      prisma.auditLog.findMany({
-        where,
-        include: {
-          user: {
-            select: { firstName: true, lastName: true, email: true },
-          },
-        },
-        orderBy: { createdAt: "desc" },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      prisma.auditLog.count({ where }),
-    ]);
+    return where;
+  }
 
+  // Enriquecimiento: resuelve referencias de incident (por entityId),
+  // user destino (entityType=User) y agente asignado (metadata.assignedToId)
+  // con N+1 queries acotadas (a lo sumo 3, una por tipo). Compartido por
+  // list() y listForExport() para no duplicar lógica.
+  private static async enrichAuditItems<
+    T extends {
+      entityType: string | null;
+      entityId: string | null;
+      metadata: Prisma.JsonValue;
+    },
+  >(items: T[]) {
     const incidentIds = items
       .filter((i) => i.entityType === "Incident" && i.entityId)
       .map((i) => i.entityId!);
@@ -118,23 +105,88 @@ export class AuditService {
 
     const incidentMap = new Map(incidents.map((i) => [i.id, i.reference]));
     const userMap = new Map(users.map((u) => [u.id, u]));
-    const agentMap = new Map(agents.map((a) => [a.id, `${a.firstName} ${a.lastName}`]));
+    const agentMap = new Map(
+      agents.map((a) => [a.id, `${a.firstName} ${a.lastName}`])
+    );
 
-    const enriched = items.map((item) => ({
+    return items.map((item) => ({
       ...item,
-      _incidentRef: item.entityType === "Incident" && item.entityId
-        ? incidentMap.get(item.entityId) ?? null
-        : null,
-      _targetUser: item.entityType === "User" && item.entityId
-        ? userMap.get(item.entityId) ?? null
-        : null,
+      _incidentRef:
+        item.entityType === "Incident" && item.entityId
+          ? incidentMap.get(item.entityId) ?? null
+          : null,
+      _targetUser:
+        item.entityType === "User" && item.entityId
+          ? userMap.get(item.entityId) ?? null
+          : null,
       _agentName: (() => {
         const m = item.metadata as Record<string, unknown> | null;
-        if (m?.assignedToId) return agentMap.get(m.assignedToId as string) ?? null;
+        if (m?.assignedToId)
+          return agentMap.get(m.assignedToId as string) ?? null;
         return null;
       })(),
     }));
+  }
 
+  static async log(input: AuditInput) {
+    return prisma.auditLog.create({
+      data: {
+        action: input.action,
+        userId: input.userId,
+        entityType: input.entityType,
+        entityId: input.entityId,
+        metadata: input.metadata ? JSON.parse(JSON.stringify(input.metadata)) : undefined,
+        ipAddress: input.ipAddress,
+        userAgent: input.userAgent,
+      },
+    });
+  }
+
+  static async list(page = 1, limit = 50, filters: ListAuditFilters = {}) {
+    // where compartido con el count para que totalPages sea coherente con
+    // los filtros (el bug clásico es contar sin filtros). buildAuditWhere
+    // se reutiliza en listForExport.
+    const where = this.buildAuditWhere(filters);
+
+    const [items, total] = await Promise.all([
+      prisma.auditLog.findMany({
+        where,
+        include: {
+          user: {
+            select: { firstName: true, lastName: true, email: true },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.auditLog.count({ where }),
+    ]);
+
+    const enriched = await this.enrichAuditItems(items);
     return { items: enriched, total, page, totalPages: Math.ceil(total / limit) };
+  }
+
+  // Variante para exportación: mismo where, sin paginar, con hardcap.
+  // Usa `take: hardCap + 1` para detectar truncado sin un count extra;
+  // si caemos en el +1, sabemos que había más filas y devolvemos
+  // `truncated: true`. El caller (endpoint CSV) decide cómo mostrarlo.
+  static async listForExport(
+    filters: ListAuditFilters = {},
+    hardCap = 10_000
+  ) {
+    const where = this.buildAuditWhere(filters);
+    const items = await prisma.auditLog.findMany({
+      where,
+      include: {
+        user: { select: { firstName: true, lastName: true, email: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: hardCap + 1,
+    });
+    const truncated = items.length > hardCap;
+    const sliced = truncated ? items.slice(0, hardCap) : items;
+    const enriched = await this.enrichAuditItems(sliced);
+    return { items: enriched, total: sliced.length, truncated };
   }
 }

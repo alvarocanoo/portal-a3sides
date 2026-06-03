@@ -1,23 +1,13 @@
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/helpers";
 import { AuditService } from "@/services/audit.service";
-import { statusLabel } from "@/lib/incident-states";
-import { formatDateTime, ROLE_LABELS } from "@/lib/constants";
+import { formatDateTime } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-
-const ACTION_LABELS: Record<string, string> = {
-  "incident.create": "Incidencia creada",
-  "incident.status_change": "Cambio de estado",
-  "incident.assign": "Incidencia asignada",
-  "incident.priority.change": "Prioridad cambiada",
-  "user.create": "Usuario creado",
-  "user.update": "Usuario modificado",
-  "user.password_reset": "Contraseña restablecida",
-  "company.create": "Empresa creada",
-  "company.update": "Empresa modificada",
-  "company.import_irecursos": "Empresa importada de iRecursos",
-  "company.import_existing": "Empresa vinculada a iRecursos",
-};
+import {
+  ACTION_LABELS,
+  formatEntity,
+  formatDetails,
+} from "@/lib/audit-format";
 
 // Opciones del desplegable de filtro. Orden = orden de ACTION_LABELS, que
 // agrupa por entidad (incidents → users → companies). Si en el futuro se
@@ -26,8 +16,6 @@ const ACTION_LABELS: Record<string, string> = {
 const ACTION_FILTER_OPTIONS = Object.entries(ACTION_LABELS).map(
   ([value, label]) => ({ value, label })
 );
-
-type AuditItem = Awaited<ReturnType<typeof AuditService.list>>["items"][number];
 
 // Resumen corto del user-agent para la columna "Origen".
 // Pensado para identificar de un vistazo cliente común sin librería. El UA
@@ -57,92 +45,6 @@ function summarizeUserAgent(ua: string | null): string | null {
 
   if (browser && os) return `${browser} / ${os}`;
   return browser || os;
-}
-
-function formatEntity(item: AuditItem): string {
-  const m = item.metadata as Record<string, unknown> | null;
-  const ref = (m?.reference as string) || item._incidentRef;
-
-  if (item.entityType === "Incident") {
-    return ref ? `Incidencia ${ref}` : "Incidencia";
-  }
-  if (item.entityType === "User") {
-    if (item._targetUser) {
-      return `${item._targetUser.firstName} ${item._targetUser.lastName}`;
-    }
-    if (m?.email) return String(m.email);
-    return "Usuario";
-  }
-  if (item.entityType === "Company") {
-    if (m?.name) return String(m.name);
-    return "Empresa";
-  }
-  return "—";
-}
-
-function formatDetails(item: AuditItem): string {
-  const m = item.metadata as Record<string, unknown> | null;
-  if (!m) return "—";
-
-  switch (item.action) {
-    case "incident.create":
-      return "Nueva incidencia abierta";
-
-    case "incident.status_change": {
-      const label = m.newStatus ? statusLabel(m.newStatus as string) : "—";
-      const reason = m.reason ? ` — ${m.reason}` : "";
-      return `Estado cambiado a: ${label}${reason}`;
-    }
-
-    case "incident.assign": {
-      const name = item._agentName;
-      return name ? `Asignada a ${name}` : "Agente asignado";
-    }
-
-    case "user.create": {
-      const role = m.role ? ROLE_LABELS[m.role as string] : null;
-      return role ? `Nuevo usuario (${role})` : "Nuevo usuario";
-    }
-
-    case "user.update": {
-      const changes: string[] = [];
-      if (m.isActive === false) changes.push("desactivado");
-      if (m.isActive === true) changes.push("activado");
-      if (m.role && ROLE_LABELS[m.role as string]) {
-        changes.push(`rol: ${ROLE_LABELS[m.role as string]}`);
-      }
-      if (m.firstName || m.lastName) changes.push("datos actualizados");
-      if (m.companyId !== undefined) changes.push("empresa cambiada");
-      return changes.length > 0 ? changes.join(", ") : "Datos modificados";
-    }
-
-    case "user.password_reset":
-      return "Contraseña temporal generada y enviada por email";
-
-    case "company.create":
-      return "Nueva empresa registrada";
-
-    case "company.update": {
-      const changes: string[] = [];
-      if (m.isActive === false) changes.push("desactivada");
-      if (m.isActive === true) changes.push("reactivada");
-      if (m.name) changes.push("nombre");
-      if (m.taxId !== undefined) changes.push("CIF/NIF");
-      if (m.irecursosClientId !== undefined) changes.push("ID iRecursos");
-      return changes.length > 0 ? changes.join(", ") : "Datos modificados";
-    }
-
-    case "company.import_irecursos":
-      return m.irecursosCode
-        ? `Importada desde iRecursos (código ${m.irecursosCode})`
-        : "Importada desde iRecursos";
-
-    case "company.import_existing":
-      return "Empresa ya existente vinculada";
-
-    default:
-      return "—";
-  }
 }
 
 export default async function AuditPage({
@@ -185,17 +87,29 @@ export default async function AuditPage({
     userSearch,
   });
 
-  // Helper para construir el href de cada link de paginación preservando
-  // los filtros activos. Encapsulado para evitar concatenación a mano.
-  function pageHref(p: number): string {
+  // Querystring SIN page para reutilizar entre paginación y export.
+  function filterQs(): URLSearchParams {
     const qs = new URLSearchParams();
-    qs.set("page", String(p));
     if (action) qs.set("action", action);
     if (dateFromISO) qs.set("dateFrom", dateFromISO);
     if (dateToISO) qs.set("dateTo", dateToISO);
     if (userSearch) qs.set("userSearch", userSearch);
+    return qs;
+  }
+
+  // Helper para construir el href de cada link de paginación preservando
+  // los filtros activos. Encapsulado para evitar concatenación a mano.
+  function pageHref(p: number): string {
+    const qs = filterQs();
+    qs.set("page", String(p));
     return `/admin/audit?${qs.toString()}`;
   }
+
+  // Href del endpoint de exportación CSV con los filtros actuales. Sin
+  // filtros, exporta todo (con el hardcap del servicio). El navegador
+  // dispara la descarga porque la respuesta lleva Content-Disposition.
+  const exportQsStr = filterQs().toString();
+  const exportHref = `/api/admin/audit/export${exportQsStr ? `?${exportQsStr}` : ""}`;
 
   return (
     <div>
@@ -298,6 +212,22 @@ export default async function AuditPage({
               Limpiar
             </Link>
           )}
+
+          {/* Exportar CSV: <a> nativo, no Link de Next — necesitamos que el
+              navegador haga una navegación normal HTTP para que dispare
+              "guardar como" con el Content-Disposition. Link de Next haría
+              client-side navigation que NO triggerea descargas. */}
+          <a
+            href={exportHref}
+            className="px-3 py-2 text-sm text-[#275d6b] hover:text-[#1f4e5b] border border-[#275d6b]/30 rounded-md hover:bg-[#275d6b]/5"
+            title={
+              hasAnyFilter
+                ? "Descargar CSV con los filtros activos"
+                : "Descargar CSV de todo el registro"
+            }
+          >
+            Exportar CSV
+          </a>
         </div>
       </form>
 
