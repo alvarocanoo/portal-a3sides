@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import type { Prisma } from "@prisma/client";
 
 interface AuditInput {
   action: string;
@@ -8,6 +9,20 @@ interface AuditInput {
   metadata?: Record<string, unknown>;
   ipAddress?: string;
   userAgent?: string;
+}
+
+export interface ListAuditFilters {
+  action?: string;
+  // Fechas YA normalizadas por el caller: dateFrom = inicio del día (>=),
+  // dateTo = inicio del día SIGUIENTE al "hasta" elegido (<). Así "hasta
+  // 2026-06-03" incluye todo el día 3 sin tener que recordarlo aquí.
+  dateFrom?: Date;
+  dateTo?: Date;
+  // Texto libre sobre nombre/apellido/email del usuario que hizo la acción.
+  // Si está presente, excluye filas con userId=null (acciones de "Sistema")
+  // — comportamiento deliberado: buscar un usuario no debe devolver eventos
+  // sin usuario.
+  userSearch?: string;
 }
 
 export class AuditService {
@@ -25,9 +40,34 @@ export class AuditService {
     });
   }
 
-  static async list(page = 1, limit = 50) {
+  static async list(page = 1, limit = 50, filters: ListAuditFilters = {}) {
+    // where compartido por findMany y count para que totalPages sea
+    // coherente con el filtro (el bug clásico es contar SIN filtros).
+    const where: Prisma.AuditLogWhereInput = {};
+
+    if (filters.action) where.action = filters.action;
+
+    if (filters.dateFrom || filters.dateTo) {
+      where.createdAt = {
+        ...(filters.dateFrom && { gte: filters.dateFrom }),
+        // dateTo ya viene exclusivo (inicio del día siguiente) → lt.
+        ...(filters.dateTo && { lt: filters.dateTo }),
+      };
+    }
+
+    if (filters.userSearch) {
+      where.user = {
+        OR: [
+          { firstName: { contains: filters.userSearch, mode: "insensitive" } },
+          { lastName: { contains: filters.userSearch, mode: "insensitive" } },
+          { email: { contains: filters.userSearch, mode: "insensitive" } },
+        ],
+      };
+    }
+
     const [items, total] = await Promise.all([
       prisma.auditLog.findMany({
+        where,
         include: {
           user: {
             select: { firstName: true, lastName: true, email: true },
@@ -37,7 +77,7 @@ export class AuditService {
         skip: (page - 1) * limit,
         take: limit,
       }),
-      prisma.auditLog.count(),
+      prisma.auditLog.count({ where }),
     ]);
 
     const incidentIds = items
