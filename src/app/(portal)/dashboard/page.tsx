@@ -21,7 +21,7 @@ import {
   statusLabelFor,
   statusClassFor,
 } from "@/lib/incident-states";
-import { formatDate, formatDuration } from "@/lib/constants";
+import { formatDateTime, formatDuration, formatRelative } from "@/lib/constants";
 
 // Iconos por estado — el resto (label, color, filtro) viene de STATUS_CONFIG.
 const STATUS_ICONS: Record<IncidentStatus, LucideIcon> = {
@@ -473,8 +473,12 @@ export default async function DashboardPage() {
                       {incident.subject}
                     </p>
                   </div>
-                  <span className="text-xs text-gray-400 ml-4 shrink-0">
-                    {formatDate(incident.updatedAt)}
+                  {/* Fecha relativa para escaneo rápido; absoluta en title. */}
+                  <span
+                    className="text-xs text-gray-400 ml-4 shrink-0"
+                    title={formatDateTime(incident.updatedAt)}
+                  >
+                    {formatRelative(incident.updatedAt)}
                   </span>
                 </Link>
               );

@@ -53,6 +53,48 @@ export function formatDateTime(date: Date | string): string {
   });
 }
 
+// ─── Fecha relativa para "vistazo rápido" ───────────────
+//
+// Devuelve la antigüedad en lenguaje natural español. Pensado para listas
+// donde el usuario quiere saber al vuelo si algo es reciente o viejo. La
+// fecha exacta debe ir SIEMPRE en un tooltip (title) al lado, vía
+// formatDateTime — la relativa es para el ojo, la absoluta para
+// comprobar.
+//
+// Umbrales:
+//   < 1 min       → "hace un momento"
+//   < 60 min      → "hace X min"   (abreviatura, no flexiona)
+//   < 24 h        → "hace X h"     (idem)
+//   < 7 días      → "hace 1 día" / "hace X días" (palabra completa, sí flexiona)
+//   ≥ 7 días      → formatDate(d)  ("12 mar 2026"): "hace 2 meses" no aporta
+//
+// Defensivo: futuro (ms < 0), NaN o fecha inválida → formatDate(d). Nunca
+// devolvemos "hace -3 min".
+//
+// Snapshot, no live: se evalúa con Date.now() en el render. No se
+// auto-actualiza sin recarga (decisión deliberada — sin timers).
+export function formatRelative(date: Date | string): string {
+  const d = new Date(date);
+  const t = d.getTime();
+  if (!isFinite(t)) return formatDate(d);
+
+  const ms = Date.now() - t;
+  if (ms < 0) return formatDate(d);
+
+  const MIN = 60_000;
+  const HOUR = 60 * MIN;
+  const DAY = 24 * HOUR;
+
+  if (ms < MIN) return "hace un momento";
+  if (ms < HOUR) return `hace ${Math.floor(ms / MIN)} min`;
+  if (ms < DAY) return `hace ${Math.floor(ms / HOUR)} h`;
+  if (ms < 7 * DAY) {
+    const days = Math.floor(ms / DAY);
+    return days === 1 ? "hace 1 día" : `hace ${days} días`;
+  }
+  return formatDate(d);
+}
+
 // ─── Duraciones (SLA: tiempo entre dos eventos) ─────────
 //
 // Devuelve la duración en español compacto. Mismos cortes que usaríamos

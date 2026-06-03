@@ -11,7 +11,7 @@ import {
   statusLabelFor,
   statusClassFor,
 } from "@/lib/incident-states";
-import { PRIORITY_CONFIG, formatDate } from "@/lib/constants";
+import { PRIORITY_CONFIG, formatDateTime, formatRelative } from "@/lib/constants";
 
 export default async function IncidenciasPage({
   searchParams,
@@ -225,7 +225,12 @@ export default async function IncidenciasPage({
                       </>
                     )}
                     <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
-                      {formatDate(incident.createdAt)}
+                      {/* Fecha relativa para escaneo rápido; absoluta en el
+                          tooltip (title) para comprobar — patrón de
+                          plataformas de soporte profesionales. */}
+                      <span title={formatDateTime(incident.createdAt)}>
+                        {formatRelative(incident.createdAt)}
+                      </span>
                     </td>
                   </tr>
                 );
