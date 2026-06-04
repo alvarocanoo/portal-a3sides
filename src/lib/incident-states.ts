@@ -3,20 +3,13 @@
 //
 // Cualquier cambio en estados, labels, estilos o transiciones
 // se hace SOLO aqui. Todas las vistas importan de este modulo.
+//
+// El enum IncidentStatus se re-exporta de @prisma/client para evitar
+// la deriva entre el enum local y el del schema (decisión §3.9).
 // ─────────────────────────────────────────────────────────
 
-import { Role } from "@/types";
-
-// ─── Enum ───────────────────────────────────────────────
-
-export enum IncidentStatus {
-  OPEN = "OPEN",
-  IN_PROGRESS = "IN_PROGRESS",
-  WAITING_CLIENT = "WAITING_CLIENT",
-  WAITING_THIRD_PARTY = "WAITING_THIRD_PARTY",
-  RESOLVED = "RESOLVED",
-  CLOSED = "CLOSED",
-}
+import { IncidentStatus, Role } from "@prisma/client";
+export { IncidentStatus };
 
 // ─── Config visual (label + estilo) ─────────────────────
 
