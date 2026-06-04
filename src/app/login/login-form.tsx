@@ -7,7 +7,21 @@ import { useRouter, useSearchParams } from "next/navigation";
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
+  // ── Anti open-redirect (hallazgo C4 segunda auditoría) ─────────────
+  // Aceptamos SOLO rutas internas. Una URL absoluta (https://evil.com)
+  // o protocol-relative (//evil.com) en callbackUrl permitiría a un
+  // atacante hacer phishing post-login: usuario entra al portal real,
+  // pero tras autenticarse acaba en evil.com con un clon del dashboard
+  // que captura su próximo input. Next 15 router.push acepta URLs
+  // externas, así que la validación es nuestra.
+  //
+  // Regla: empieza por "/" pero NO por "//" → interno → respeta.
+  //         Cualquier otra cosa → cae a "/dashboard".
+  const rawCallback = searchParams.get("callbackUrl") || "/dashboard";
+  const callbackUrl =
+    rawCallback.startsWith("/") && !rawCallback.startsWith("//")
+      ? rawCallback
+      : "/dashboard";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
