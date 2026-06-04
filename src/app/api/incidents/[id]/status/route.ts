@@ -16,6 +16,14 @@ export async function PATCH(
       return NextResponse.json({ error: "No autenticado" }, { status: 401 });
     }
 
+    // Guard §1.3: ver explicación en /api/incidents.
+    if (session.user.mustChangePassword) {
+      return NextResponse.json(
+        { error: "DEBE_CAMBIAR_PASSWORD" },
+        { status: 403 }
+      );
+    }
+
     const { id } = await params;
     const body = await request.json();
     const parsed = updateIncidentStatusSchema.safeParse(body);

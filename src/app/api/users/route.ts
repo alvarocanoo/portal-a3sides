@@ -36,6 +36,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 
+    // Guard §1.3: ver explicación en /api/incidents.
+    if (session.user.mustChangePassword) {
+      return NextResponse.json(
+        { error: "DEBE_CAMBIAR_PASSWORD" },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const parsed = createUserSchema.safeParse(body);
 

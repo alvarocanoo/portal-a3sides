@@ -83,6 +83,17 @@ export async function POST(request: Request) {
       );
     }
 
+    // Guard §1.3: bloquea mutaciones de usuarios con contraseña temporal
+    // sin cambiar. La UI ya les redirige a /cambiar-password, pero un
+    // curl con la cookie de sesión saltaba el UI. 403 (autenticados pero
+    // no autorizados para esta acción hasta cambiar la pw).
+    if (session.user.mustChangePassword) {
+      return NextResponse.json(
+        { error: "DEBE_CAMBIAR_PASSWORD" },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const parsed = createIncidentSchema.safeParse(body);
 

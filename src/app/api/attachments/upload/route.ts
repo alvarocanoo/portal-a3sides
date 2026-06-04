@@ -10,6 +10,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 });
     }
 
+    // Guard §1.3: ver explicación en /api/incidents.
+    if (session.user.mustChangePassword) {
+      return NextResponse.json(
+        { error: "DEBE_CAMBIAR_PASSWORD" },
+        { status: 403 }
+      );
+    }
+
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
     const incidentId = formData.get("incidentId") as string | null;
