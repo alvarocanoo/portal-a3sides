@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { authorizeApi } from "@/lib/auth/api";
 import { AuditService } from "@/services/audit.service";
 import { getRequestContext } from "@/lib/request-context";
 import {
@@ -42,11 +42,16 @@ function exportFilename(now: Date): string {
 
 export async function GET(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user || session.user.role !== "ADMIN") {
-      // 403 JSON, mismo patrón que el resto de endpoints admin del proyecto.
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-    }
+    // Migrado a authorizeApi (segunda auditoría §2.1): este endpoint
+    // quedó fuera del refactor §3.6 original porque no estaba en la
+    // lista de los 12 mutadores. Pero ES una mutación de hecho (registra
+    // audit.export en AuditLog) y debe llevar el mismo guard
+    // mustChangePassword que el resto, por coherencia y porque un admin
+    // que aún no ha cambiado su pw temporal no debería poder exportar
+    // el audit completo (contiene datos personales de todos los usuarios).
+    const authz = await authorizeApi({ roles: ["ADMIN"] });
+    if (!authz.ok) return authz.response;
+    const { session } = authz;
 
     // ── Parseo de filtros (mismo contrato que la página) ──────────────
     const url = new URL(request.url);
