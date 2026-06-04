@@ -242,8 +242,12 @@ function makeDeps(opts: {
 
   const sendEmail: NonNullable<BulkImportDeps["sendEmail"]> = async (input) => {
     calls.sendEmail.push({ to: input.to, subject: input.subject });
+    // Refleja el contrato actual: sendEmail() devuelve false en fallo,
+    // NO lanza. Antes este mock lanzaba (contrato viejo) pero el wrapper
+    // real cambió en §2.1 y el mock quedó desincronizado. El service
+    // ahora chequea el boolean en vez de capturar la excepción.
     if (opts.sendEmailShouldFail) {
-      throw new Error("SMTP_FAILED");
+      return false;
     }
     return true;
   };

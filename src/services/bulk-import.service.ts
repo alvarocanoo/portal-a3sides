@@ -370,21 +370,28 @@ async function processClient(
     });
 
     if (ctx.sendOnboardingEmails) {
-      try {
-        await sendEmail({
-          to: user.email,
-          subject: invitation.subject,
-          html: invitation.html,
-          tracking: { kind: "user.invitation" },
-        });
+      // sendEmail() ya NO lanza ante fallos de SMTP — devuelve un boolean
+      // (true=enviado, false=fallo). Antes el try/catch capturaba la
+      // excepción y stats.invitationsSent solo subía si SMTP iba bien.
+      // Tras el refactor §2.1 el catch era código muerto y el contador
+      // se inflaba con TODOS los intentos, exitosos o no. Mismo patrón
+      // que src/app/api/users/route.ts:71 (que sí lo hace bien).
+      const sent = await sendEmail({
+        to: user.email,
+        subject: invitation.subject,
+        html: invitation.html,
+        tracking: { kind: "user.invitation" },
+      });
+      if (sent) {
         stats.invitationsSent++;
-      } catch (err) {
-        // Email falla pero el usuario YA está creado — lo notamos pero no
-        // tiramos la importación. El admin podrá reenviar desde el panel.
+      } else {
+        // Usuario YA está creado, no tiramos la importación. El admin verá
+        // este issue y podrá usar "Resetear contraseña" en /admin/usuarios
+        // para reenviar la invitación con una nueva temporal.
         noteIssue(
           codcli,
           "email-send-failed",
-          err instanceof Error ? err.message : String(err)
+          "sendEmail devolvió false — revisa logs del servidor y SMTP_HOST/USER/PASS"
         );
       }
     } else {
