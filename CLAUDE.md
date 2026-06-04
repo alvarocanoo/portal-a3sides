@@ -162,3 +162,57 @@ Construye sobre esas bases con el nivel técnico máximo: código sólido, proba
 El objetivo no es "hacer cosas que molen". El objetivo es que **a3sides no quiera dejar ir al usuario y le confirme como programador.** El camino está claro: **entregar el portal de incidencias con calidad de producción real, sobre bases impecables, para uso oficial.** Cada pregunta que hagas, cada decisión de diseño y cada línea de código se mide contra eso. Es software del que dependerán clientes reales y que un ingeniero veterano va a revisar por dentro: ese es el listón, en todo momento.
 
 Ahora empieza por el **Paso A**: haz la tanda de preguntas de requisitos y restricciones, agrupadas y priorizadas. No diseñes ni codifiques todavía — primero entiende el terreno para que las bases salgan perfectas a la primera.
+
+---
+
+## 8. DECISIONES ARQUITECTÓNICAS VIVAS (NO CAMBIAR SIN AVISAR)
+
+Estas son decisiones que se tomaron explícitamente en algún momento del proyecto y que **NO son obvias leyendo solo el código**. Si una propuesta tuya las contradice, márcalo y discútelo con el usuario antes de implementarla — no las cambies en silencio.
+
+Esta sección crece a medida que se toman decisiones; cada una incluye razón, cómo se enforza hoy y qué hacer si llega el momento de cambiarla.
+
+### 8.1 Soft-delete-only para Company y User (auditoría §2.3)
+
+**Política:** NO se hace hard-delete de `Company` ni de `User`. La única forma soportada de "borrar" es marcarlos con `isActive=false`.
+
+**Por qué:** borrar destruiría el audit trail (las incidencias, mensajes, status changes y audit logs que referencian a ese user/company perderían sus FKs o desaparecerían). Para un portal cuyo decisor va a auditar las tripas, eso es inaceptable.
+
+**Cómo se enforza en el schema:** las FK `Incident.companyId` e `Incident.createdById` **no llevan `onDelete: Cascade`** deliberadamente. Prisma cae al default `Restrict` → intentar borrar una Company con incidencias falla con FK error críptico. Es una "muerte ruidosa" intencional para que un hard-delete accidental no pase desapercibido.
+
+**Implicación para nuevo código:**
+- NO añadir endpoints `DELETE /api/companies/[id]` ni `DELETE /api/users/[id]`. Si alguien lo pide, **debe ser `PATCH` con `isActive=false`**.
+- Si el schema cambia para añadir cascades (porque alguien pide hard-delete), justificarlo aquí ANTES, no después.
+- En seeds y tests que sí necesitan borrar: ok, son entornos controlados. Pero NUNCA exponer endpoints DELETE en producción para estas dos entidades.
+
+### 8.2 `Incident.lastSyncedAt` está en el schema pero NO se usa (auditoría §2.4)
+
+**Estado:** el campo existe (`prisma/schema.prisma:116`) y siempre vale `NULL`. Fue previsto para sincronizar incidencias del portal con iRecursos pero la integración nunca se implementó.
+
+**Decisión:** mantenerlo en el schema. **NO borrar** sin una razón fuerte porque eso requiere migración (operación destructiva sobre Neon que prefiero evitar mientras no haya certeza de que no se usará jamás).
+
+**Implicación para nuevo código:**
+- Si en el futuro alguien implementa sync iRecursos↔Portal, **USAR este campo** (no añadir uno nuevo como `lastIRecursosSyncAt` ni `syncedAt` ni similar). Tener varios campos con el mismo significado es deriva semántica.
+- Si pasan 6 meses sin uso real y el equipo decide que la sincronización no se va a hacer, ese es el momento para borrarlo en una migración explícita y documentada.
+- Hay un comentario en el schema (`prisma/schema.prisma`) que apunta a esta decisión.
+
+### 8.3 Modelo multi-tenant débil: single-staff, multi-cliente (auditoría C2)
+
+**Cómo está hoy:**
+- **CLIENT:** multi-tenant fuerte. Cada cliente solo ve incidencias de su empresa (`where.companyId = session.user.companyId`). Endpoint, query y UI lo enforzan en capas redundantes (defensa en profundidad).
+- **AGENT y ADMIN:** single-tenant. Ven y operan sobre **todas** las empresas sin restricción organizacional.
+
+**Por qué:** a3sides es **una sola organización** de partners WK. Todos los agentes son del mismo equipo interno en Paterna. No hay sub-organizaciones que separar.
+
+**Cuándo esto se rompe:**
+- Si a3sides crece a múltiples oficinas (ej. Valencia + Madrid) y se quiere aislar los agentes de Valencia de las pymes de Madrid.
+- Si el portal se ofrece como **producto** a otra reseller (otra empresa que se compre la plataforma).
+
+**Plan de migración (si llega el caso):**
+1. Añadir tabla `Organization { id, name, createdAt, ... }`.
+2. Añadir `User.organizationId` y `Company.organizationId` como FK obligatoria.
+3. Propagar `where.organizationId = session.user.organizationId` en **todas** las queries de `incident.service.ts`, `user.service.ts`, `company.service.ts` y los endpoints relacionados.
+4. Repetir la auditoría de scope (igual que la que se hizo para CLIENT-multi-tenant) para garantizar que no hay rutas por las que un AGENT de Org A pueda ver datos de Org B.
+
+**Coste estimado:** alto (decenas de queries que propagar) e **irreversible** una vez en producción con datos reales. **Por eso documentamos ahora** que vamos por el camino single-staff, para que sea una decisión consciente del equipo cuando llegue el momento y no una sorpresa.
+
+**Si recibes una petición de tipo "que el agente X solo vea las pymes de Madrid"** — **PARA** y avisa al usuario que eso implica la migración anterior y debe decidirse explícitamente, no parchearse con un filtro local.

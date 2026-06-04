@@ -113,6 +113,11 @@ model Incident {
 
   irecursosCaseId String?
   irecursosOtId   String?
+  // lastSyncedAt: campo previsto para sincronizar Incident ↔ iRecursos.
+  // NO se usa hoy en ningún sitio del código (siempre NULL). Decisión
+  // documentada en CLAUDE.md §8.2 (Decisiones arquitectónicas vivas).
+  // Si se implementa la sincronización en el futuro, USAR este campo
+  // — no añadir uno nuevo.
   lastSyncedAt    DateTime?
 
   messages      Message[]
