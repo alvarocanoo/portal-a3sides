@@ -22,6 +22,7 @@ export const ACTION_LABELS: Record<string, string> = {
   "user.create": "Usuario creado",
   "user.update": "Usuario modificado",
   "user.password_reset": "Contraseña restablecida",
+  "user.password_changed": "Contraseña cambiada",
   "company.create": "Empresa creada",
   "company.update": "Empresa modificada",
   "company.import_irecursos": "Empresa importada de iRecursos",
@@ -94,6 +95,13 @@ export function formatDetails(item: EnrichedAuditItem): string {
 
     case "user.password_reset":
       return "Contraseña temporal generada y enviada por email";
+
+    case "user.password_changed":
+      // Metadata: { firstAccess: boolean }. Distingue cambio forzoso de
+      // primer acceso (mustChangePassword) del cambio voluntario.
+      return m.firstAccess === true
+        ? "Cambio inicial (primer acceso)"
+        : "Cambio voluntario por el usuario";
 
     case "company.create":
       return "Nueva empresa registrada";

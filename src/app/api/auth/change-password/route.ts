@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import { compare, hash } from "bcryptjs";
 import { z } from "zod";
 import { validatePassword } from "@/lib/password-policy";
+import { AuditService } from "@/services/audit.service";
+import { getRequestContext } from "@/lib/request-context";
 
 const changePasswordSchema = z.object({
   oldPassword: z.string().optional(),
@@ -83,6 +85,21 @@ export async function POST(request: Request) {
         passwordHash,
         mustChangePassword: false,
       },
+    });
+
+    // Audit §2.5: el cambio voluntario de contraseña no se registraba
+    // (solo se auditaba el reset del admin). Lo cerramos aquí.
+    // Metadata distingue primer-acceso (forzoso) de cambio voluntario,
+    // útil para el admin que revisa el log.
+    const { ipAddress, userAgent } = getRequestContext(request);
+    await AuditService.log({
+      action: "user.password_changed",
+      userId: session.user.id,
+      entityType: "User",
+      entityId: session.user.id,
+      metadata: { firstAccess: user.mustChangePassword },
+      ipAddress,
+      userAgent,
     });
 
     return NextResponse.json({ ok: true });
