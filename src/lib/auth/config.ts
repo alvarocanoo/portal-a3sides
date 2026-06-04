@@ -3,6 +3,16 @@ import Credentials from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { prisma } from "@/lib/db";
 
+// ─── Lockout por email contra fuerza bruta (hallazgo §1.2) ───
+// 5 fallos en 15 min → bloqueo. Acierto resetea (deleteMany).
+// Solo registramos fallos para usuarios reales y activos → evita
+// llenar la tabla con basura de emails enumerados y limita el DoS.
+// Trade-off conocido: un atacante puede inducir lockout contra un
+// email real válido (5 fallos = 15min sin acceso). La protección
+// por IP queda como tarea futura (§1.2 parte 2).
+const LOCKOUT_THRESHOLD = 5;
+const LOCKOUT_WINDOW_MS = 15 * 60 * 1000;
+
 export const authConfig: NextAuthConfig = {
   providers: [
     Credentials({
@@ -14,18 +24,38 @@ export const authConfig: NextAuthConfig = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        const email = credentials.email as string;
+        const email = (credentials.email as string).toLowerCase().trim();
         const password = credentials.password as string;
 
-        const user = await prisma.user.findUnique({
-          where: { email: email.toLowerCase().trim() },
+        // 1) Lockout check ANTES de findUnique/bcrypt. Si está bloqueado:
+        //    null directo. Ahorra ~250ms de bcrypt por intento atacante.
+        const cutoff = new Date(Date.now() - LOCKOUT_WINDOW_MS);
+        const recentFails = await prisma.loginAttempt.count({
+          where: { email, createdAt: { gte: cutoff } },
         });
+        if (recentFails >= LOCKOUT_THRESHOLD) return null;
 
+        // 2) Buscar usuario.
+        const user = await prisma.user.findUnique({ where: { email } });
+
+        // 3) Sin usuario o inactivo: null SIN registrar fallo. Razón:
+        //    si registráramos, un atacante podría llenar la tabla con
+        //    intentos contra emails enumerados o desactivados, dejando
+        //    bloqueados a usuarios que ni siquiera tienen sesión activa.
+        //    Solo cuentas reales y activas merecen lockout.
         if (!user || !user.isActive) return null;
 
+        // 4) Verificar password.
         const isValid = await compare(password, user.passwordHash);
-        if (!isValid) return null;
+        if (!isValid) {
+          await prisma.loginAttempt.create({ data: { email } });
+          return null;
+        }
 
+        // 5) Éxito: limpiar intentos previos. Acierto resetea contador.
+        await prisma.loginAttempt.deleteMany({ where: { email } });
+
+        // 6) Resto del flujo original.
         await prisma.user.update({
           where: { id: user.id },
           data: { lastLoginAt: new Date() },

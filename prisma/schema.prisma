@@ -220,3 +220,32 @@ model IncidentCounter {
 
   @@map("incident_counters")
 }
+
+// ─── Login Attempts (rate limit por email) ──────────────
+//
+// Una fila por intento de login fallido. Usada por el authorize de
+// NextAuth (src/lib/auth/config.ts) para implementar lockout 5×15min
+// por email.
+//
+// Reglas:
+//   - Solo se registra el fallo si el email corresponde a un usuario
+//     REAL y ACTIVO (evita DoS contra emails enumerados/desactivados).
+//   - Cuando un login es exitoso, se borran TODAS las filas de ese
+//     email — el acierto resetea el contador (no se penaliza al
+//     usuario legítimo que falló 1-2 veces antes de acertar).
+//
+// Limpieza: por el patrón anterior, solo crecen filas para emails que
+// nunca acabaron logueándose (ataques que no entraron). Con el índice
+// compuesto, las queries siguen rápidas incluso con millones de filas.
+// Si en el futuro la tabla pasa de ~100k filas, un cron diario que
+// borre createdAt < NOW() - 1 hora es trivial. No lo añadimos ahora.
+model LoginAttempt {
+  id        String   @id @default(uuid()) @db.Uuid
+  email     String
+  createdAt DateTime @default(now())
+
+  // Índice compuesto: las queries de lockout filtran por email + ventana.
+  // Sin esto, el count escanea tabla completa.
+  @@index([email, createdAt])
+  @@map("login_attempts")
+}
