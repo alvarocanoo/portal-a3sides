@@ -27,6 +27,15 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  // ── Contador local de intentos fallidos en ESTA pestaña ──────────
+  // SOLO estado de cliente. No revela el estado real del lockout (que
+  // vive en BD por email); solo cuenta intentos del usuario aquí. Sirve
+  // para mostrar un texto de ayuda secundario tras 3 fallos, orientando
+  // al usuario legítimo que se autobloquea por error sin revelarle ni
+  // a un atacante observador que la cuenta está bloqueada. Hallazgo
+  // §2.2 de la segunda auditoría.
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const HELP_THRESHOLD = 3;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -42,6 +51,7 @@ export function LoginForm() {
 
       if (result?.error) {
         setError("Email o contraseña incorrectos");
+        setFailedAttempts((n) => n + 1);
         return;
       }
 
@@ -65,6 +75,21 @@ export function LoginForm() {
         <div className="bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg p-3">
           {error}
         </div>
+      )}
+
+      {/* Texto de ayuda secundario tras varios fallos en esta pestaña.
+          POSIBILIDAD, no diagnóstico: el front NO sabe si la cuenta está
+          bloqueada (eso sería revelar info a un atacante). Solo orienta
+          al usuario legítimo que ha tecleado mal varias veces y luego
+          duda si su pw es correcta. Gris pequeño, no banner rojo — se
+          lee como "ayuda", no como otro error. */}
+      {failedAttempts >= HELP_THRESHOLD && (
+        <p className="text-xs text-gray-500 leading-relaxed">
+          ¿Tu contraseña es correcta y aun así no entras? Por seguridad,
+          tras varios intentos fallidos el acceso a una cuenta se bloquea
+          temporalmente unos minutos. Espera un poco e inténtalo de nuevo,
+          o contacta con tu administrador si el problema persiste.
+        </p>
       )}
 
       <div>
