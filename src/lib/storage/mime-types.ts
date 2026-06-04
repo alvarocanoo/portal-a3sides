@@ -12,6 +12,12 @@
 // importarlo desde un Client Component sin arrastrar el bundle al cliente.
 // ─────────────────────────────────────────────────────────────────────
 
+// Lista deliberadamente restringida: solo formatos con magic bytes
+// verificables. text/plain y text/csv NO están porque no tienen magic
+// bytes (cualquier binario disfrazado de text/plain se cuela y se
+// descarga al receptor con el Content-Type declarado por el atacante).
+// Si se necesita compartir texto, copiar/pegar en un mensaje del ticket
+// es preferible a un adjunto sin verificar.
 export const ALLOWED_MIME_TYPES: readonly string[] = [
   "image/jpeg",
   "image/png",
@@ -22,8 +28,6 @@ export const ALLOWED_MIME_TYPES: readonly string[] = [
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/vnd.ms-excel",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "text/plain",
-  "text/csv",
 ];
 
 // Subset de ALLOWED_MIME_TYPES que se pueden previsualizar como imagen

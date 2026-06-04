@@ -79,12 +79,11 @@ function detectMagic(buffer: Buffer): string | null {
 }
 
 // Comprueba que el contenido coincide razonablemente con el MIME declarado.
-// Para tipos sin magic bytes universales (text, csv) se acepta sin verificar.
+// Todos los tipos del allowlist actual tienen magic bytes verificables
+// (ver detectMagic). text/plain y text/csv quedaron fuera del allowlist
+// precisamente para no tener que confiar en el cliente.
 function mimeMatchesContent(declaredMime: string, buffer: Buffer): boolean {
   const detected = detectMagic(buffer);
-
-  // text/* y csv no tienen magic bytes universales — confiamos en el cliente
-  if (declaredMime.startsWith("text/")) return true;
 
   if (!detected) return false;
 

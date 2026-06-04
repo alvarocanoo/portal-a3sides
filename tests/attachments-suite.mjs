@@ -123,9 +123,13 @@ try {
   pass("Devuelve id + fileName + fileSize + mimeType",
     r1.data?.id && r1.data?.fileName === "test.png" && r1.data?.fileSize > 0 && r1.data?.mimeType === "image/png");
 
+  // text/plain quedó FUERA del allowlist (decisión §2.6): sin magic
+  // bytes universales, un binario disfrazado de text/plain se colaba.
+  // Esperamos 400 MIME_NOT_ALLOWED.
   const txt = new File([TXT_BYTES], "notas.txt", { type: "text/plain" });
   const r2 = await uploadAttachment(clientCookies, txt, { incidentId: ownIncident.id });
-  pass("CLIENT sube texto plano: 201", r2.status === 201);
+  pass("CLIENT NO puede subir text/plain (allowlist sin text/*): 400", r2.status === 400);
+  pass("text/plain rechazo lleva code MIME_NOT_ALLOWED", r2.data?.code === "MIME_NOT_ALLOWED");
 
   // Descarga: verificamos que el binario que vuelve es identico
   const dl = await fetch(`${BASE}/api/attachments/${r1.data.id}`, {
