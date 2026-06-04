@@ -21,9 +21,12 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (isPublic && sessionToken && pathname === "/login") {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
-  }
+  // Nota: la redirección "ya estás logueado, vete al /dashboard" la decide
+  // la propia página /login con `auth()` (que sí valida la cookie contra
+  // BD). Antes se hacía aquí, pero el middleware vive en edge runtime y
+  // no puede validar el JWT contra BD → si la cookie estaba pero la
+  // sesión era inválida (usuario desactivado), se generaba un LOOP
+  // /login → /dashboard → /login. Cierre del hallazgo §1.1 (parte 2).
 
   const response = NextResponse.next();
 

@@ -1,8 +1,23 @@
 import { Suspense } from "react";
+import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
 import { LoginForm } from "./login-form";
 import { BrandPanel } from "@/components/layout/brand-panel";
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  // Si el usuario YA tiene una sesión válida, mandarlo al dashboard. Esta
+  // check estaba antes en el middleware (ver src/middleware.ts), pero el
+  // middleware solo puede leer la presencia de la cookie — no valida si
+  // el JWT corresponde a un usuario activo. Con la cookie expirada o de
+  // un usuario desactivado, hacer la redirección desde el middleware
+  // producía un LOOP /login → /dashboard → /login. Aquí, `auth()` ejecuta
+  // el callback jwt que revalida contra BD y devuelve null cuando ya no
+  // es válida → caemos al form.
+  const session = await auth();
+  if (session?.user) {
+    redirect("/dashboard");
+  }
+
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-white">
       <BrandPanel />
