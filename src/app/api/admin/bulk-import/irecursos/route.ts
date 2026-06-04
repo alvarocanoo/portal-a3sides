@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { auth } from "@/lib/auth";
+import { authorizeApi } from "@/lib/auth/api";
 import {
   bulkImportFromIRecursos,
   MAX_PAGES_HARD_CAP,
@@ -32,18 +32,9 @@ const bodySchema = z.object({
  * pasar a job en background; no aplica para la fase de verificación.
  */
 export async function POST(request: Request) {
-  const session = await auth();
-  if (!session?.user || session.user.role !== "ADMIN") {
-    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-  }
-
-  // Guard §1.3: ver explicación en /api/incidents.
-  if (session.user.mustChangePassword) {
-    return NextResponse.json(
-      { error: "DEBE_CAMBIAR_PASSWORD" },
-      { status: 403 }
-    );
-  }
+  const authz = await authorizeApi({ roles: ["ADMIN"] });
+  if (!authz.ok) return authz.response;
+  const { session } = authz;
 
   let body: unknown;
   try {

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { authorizeApi } from "@/lib/auth/api";
 import { IncidentService } from "@/services/incident.service";
 import { AuditService } from "@/services/audit.service";
 import { getRequestContext } from "@/lib/request-context";
@@ -64,10 +65,13 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
+    // authorizeApi() cubre auth + mustChangePassword. El check de rol
+    // específico se hace después con su mensaje custom porque "Solo los
+    // clientes pueden crear incidencias" es más informativo que el
+    // genérico "No autorizado" del helper.
+    const authz = await authorizeApi();
+    if (!authz.ok) return authz.response;
+    const { session } = authz;
 
     if (session.user.role !== "CLIENT") {
       return NextResponse.json(
@@ -80,17 +84,6 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "El usuario no tiene empresa asignada" },
         { status: 400 }
-      );
-    }
-
-    // Guard §1.3: bloquea mutaciones de usuarios con contraseña temporal
-    // sin cambiar. La UI ya les redirige a /cambiar-password, pero un
-    // curl con la cookie de sesión saltaba el UI. 403 (autenticados pero
-    // no autorizados para esta acción hasta cambiar la pw).
-    if (session.user.mustChangePassword) {
-      return NextResponse.json(
-        { error: "DEBE_CAMBIAR_PASSWORD" },
-        { status: 403 }
       );
     }
 

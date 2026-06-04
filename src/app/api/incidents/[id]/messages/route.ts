@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { authorizeApi } from "@/lib/auth/api";
 import { IncidentService } from "@/services/incident.service";
 import { NotificationService } from "@/services/notification.service";
 import { createMessageSchema } from "@/lib/validators/incident";
@@ -9,18 +9,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
-
-    // Guard §1.3: ver explicación en /api/incidents.
-    if (session.user.mustChangePassword) {
-      return NextResponse.json(
-        { error: "DEBE_CAMBIAR_PASSWORD" },
-        { status: 403 }
-      );
-    }
+    const authz = await authorizeApi();
+    if (!authz.ok) return authz.response;
+    const { session } = authz;
 
     const { id } = await params;
     const body = await request.json();

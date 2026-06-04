@@ -1,22 +1,13 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { authorizeApi } from "@/lib/auth/api";
 import { prisma } from "@/lib/db";
 import { uploadFile, UploadError } from "@/lib/storage";
 
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    }
-
-    // Guard §1.3: ver explicación en /api/incidents.
-    if (session.user.mustChangePassword) {
-      return NextResponse.json(
-        { error: "DEBE_CAMBIAR_PASSWORD" },
-        { status: 403 }
-      );
-    }
+    const authz = await authorizeApi();
+    if (!authz.ok) return authz.response;
+    const { session } = authz;
 
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
