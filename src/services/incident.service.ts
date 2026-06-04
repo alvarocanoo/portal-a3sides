@@ -415,55 +415,70 @@ export class IncidentService {
       if (isInternal) throw new Error("FORBIDDEN");
     }
 
-    const message = await prisma.message.create({
-      data: {
-        content,
-        isInternal,
-        incidentId,
-        authorId,
-      },
-      include: {
-        author: {
-          select: { id: true, firstName: true, lastName: true, role: true },
+    // ── Atomicidad: mensaje + efectos en una sola transacción ──────────
+    // Antes había 3 operaciones independientes (create message + status
+    // change + firstResponseAt update). Si la 2ª o 3ª fallaba, el mensaje
+    // quedaba creado con efectos a medias. Además había race condition
+    // en `if (!incident.firstResponseAt) update`: dos agentes a la vez
+    // pasaban el check y ambos hacían update.
+    //
+    // Solución:
+    //   - Una sola transacción con callback async.
+    //   - Para firstResponseAt y status WAITING_CLIENT→IN_PROGRESS usamos
+    //     `updateMany` con filtro condicional: solo escribe si la
+    //     condición sigue cumpliéndose. Es un compare-and-set atómico
+    //     en una sola query — sin race ni doble round-trip.
+    //   - El StatusChange solo se crea si el updateMany REALMENTE cambió
+    //     el estado (count > 0). Evita filas espurias si dos pestañas
+    //     del mismo cliente responden a la vez.
+    return prisma.$transaction(async (tx) => {
+      const message = await tx.message.create({
+        data: {
+          content,
+          isInternal,
+          incidentId,
+          authorId,
         },
-      },
-    });
-
-    // Si el cliente responde y el ticket estaba esperando su respuesta, volver a IN_PROGRESS
-    if (
-      userRole === "CLIENT" &&
-      incident.status === "WAITING_CLIENT"
-    ) {
-      await prisma.$transaction([
-        prisma.incident.update({
-          where: { id: incidentId },
-          data: { status: "IN_PROGRESS" },
-        }),
-        prisma.statusChange.create({
-          data: {
-            fromStatus: "WAITING_CLIENT",
-            toStatus: "IN_PROGRESS",
-            reason: "Respuesta del cliente",
-            incidentId,
-            changedById: authorId,
+        include: {
+          author: {
+            select: { id: true, firstName: true, lastName: true, role: true },
           },
-        }),
-      ]);
-    }
-
-    // Registrar first response si es agente y no se ha respondido antes
-    if (
-      userRole !== "CLIENT" &&
-      !isInternal &&
-      !incident.firstResponseAt
-    ) {
-      await prisma.incident.update({
-        where: { id: incidentId },
-        data: { firstResponseAt: new Date() },
+        },
       });
-    }
 
-    return message;
+      // Cliente responde a un ticket en WAITING_CLIENT → reabrir a
+      // IN_PROGRESS. CAS sobre status para no crear un StatusChange
+      // espurio si otra pestaña ya cambió el estado.
+      if (userRole === "CLIENT" && incident.status === "WAITING_CLIENT") {
+        const updated = await tx.incident.updateMany({
+          where: { id: incidentId, status: "WAITING_CLIENT" },
+          data: { status: "IN_PROGRESS" },
+        });
+        if (updated.count > 0) {
+          await tx.statusChange.create({
+            data: {
+              fromStatus: "WAITING_CLIENT",
+              toStatus: "IN_PROGRESS",
+              reason: "Respuesta del cliente",
+              incidentId,
+              changedById: authorId,
+            },
+          });
+        }
+      }
+
+      // Primera respuesta de staff (no interna): marcar firstResponseAt.
+      // CAS con filtro `firstResponseAt: null` → si ya estaba marcado por
+      // otro agente que respondió microsegundos antes, esta query es no-op.
+      if (userRole !== "CLIENT" && !isInternal) {
+        await tx.incident.updateMany({
+          where: { id: incidentId, firstResponseAt: null },
+          data: { firstResponseAt: new Date() },
+        });
+      }
+
+      return message;
+    });
   }
 
   private static async generateReference(): Promise<string> {
