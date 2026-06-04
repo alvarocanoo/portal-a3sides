@@ -375,6 +375,7 @@ async function processClient(
           to: user.email,
           subject: invitation.subject,
           html: invitation.html,
+          tracking: { kind: "user.invitation" },
         });
         stats.invitationsSent++;
       } catch (err) {

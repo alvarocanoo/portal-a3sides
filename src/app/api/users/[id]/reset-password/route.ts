@@ -51,6 +51,7 @@ export async function POST(
       to: email,
       subject: reset.subject,
       html: reset.html,
+      tracking: { kind: "user.password_reset" },
     });
 
     return NextResponse.json({

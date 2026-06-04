@@ -84,6 +84,7 @@ export async function POST(request: Request) {
       to: user.email,
       subject: invitation.subject,
       html: invitation.html,
+      tracking: { kind: "user.invitation" },
     });
 
     return NextResponse.json(

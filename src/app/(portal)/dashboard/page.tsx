@@ -50,7 +50,7 @@ export default async function DashboardPage() {
         ? { assignedToId: session.user.id }
         : {};
 
-  const [counts, recentIncidents] = await Promise.all([
+  const [counts, recentIncidents, failedNotifications24h] = await Promise.all([
     prisma.incident.groupBy({
       by: ["status"],
       where,
@@ -65,6 +65,20 @@ export default async function DashboardPage() {
       orderBy: { updatedAt: "desc" },
       take: 5,
     }),
+    // §2.1: visibilidad de SMTP fallidos. Solo ADMIN — para AGENT/CLIENT
+    // no aporta nada. Cuando es 0 no se renderiza nada (zero-state
+    // silencioso): el banner aparece SOLO si hay problema, principio
+    // "que el problema se vea solo".
+    role === "ADMIN"
+      ? prisma.notificationAttempt.count({
+          where: {
+            status: "failed",
+            createdAt: {
+              gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
+            },
+          },
+        })
+      : Promise.resolve(0),
   ]);
 
   // Construir mapa de conteos por estado + total (suma de todos)
@@ -295,6 +309,29 @@ export default async function DashboardPage() {
               );
             })}
       </div>
+
+      {/* ── Banner notificaciones fallidas — SOLO ADMIN ───────────────
+          Zero-state silencioso: si no hay fallos en últimas 24h, NADA
+          se renderiza. Solo aparece cuando hay un problema real que
+          el admin debe atender (típicamente: caída SMTP). */}
+      {role === "ADMIN" && failedNotifications24h > 0 && (
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 flex items-start gap-3">
+          <AlertTriangle className="h-5 w-5 text-red-700 shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-red-900">
+              {failedNotifications24h} notificaci
+              {failedNotifications24h === 1 ? "ón" : "ones"} no se{" "}
+              {failedNotifications24h === 1 ? "ha" : "han"} podido enviar en las
+              últimas 24 horas.
+            </p>
+            <p className="text-xs text-red-700 mt-1">
+              Probable problema de SMTP. Revisa la configuración (SMTP_HOST,
+              SMTP_USER, SMTP_PASS) y los logs del servidor. Los clientes y
+              agentes destinatarios NO han recibido el aviso.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ── Métricas de tiempo — SOLO AGENT/ADMIN ──────────────────────
           El CLIENT no ve nada de esta sección. staffMetrics es null para

@@ -26,6 +26,7 @@ export class NotificationService {
     await sendEmail({
       to: incident.createdBy.email,
       ...clientEmail,
+      tracking: { kind: "incident.created", incidentId: incident.id },
     });
 
     const agents = await prisma.user.findMany({
@@ -43,7 +44,11 @@ export class NotificationService {
 
     await Promise.allSettled(
       agents.map((agent) =>
-        sendEmail({ to: agent.email, ...agentEmail })
+        sendEmail({
+          to: agent.email,
+          ...agentEmail,
+          tracking: { kind: "incident.created", incidentId: incident.id },
+        })
       )
     );
   }
@@ -80,10 +85,16 @@ export class NotificationService {
       incidentId: incident.id,
     });
 
+    const track = { kind: "message.new" as const, incidentId: incident.id };
+
     if (author.role === "CLIENT") {
       if (incident.assignedTo) {
         // Caso normal: hay agente asignado, le notificamos solo a él.
-        await sendEmail({ to: incident.assignedTo.email, ...emailData });
+        await sendEmail({
+          to: incident.assignedTo.email,
+          ...emailData,
+          tracking: track,
+        });
       } else {
         // Sin agente asignado: notificamos a TODOS los AGENT/ADMIN activos —
         // mismo conjunto de destinatarios que onIncidentCreated. Si no se
@@ -95,13 +106,17 @@ export class NotificationService {
         });
         await Promise.allSettled(
           recipients.map((r) =>
-            sendEmail({ to: r.email, ...emailData })
+            sendEmail({ to: r.email, ...emailData, tracking: track })
           )
         );
       }
     } else {
       // Agente/admin escribe: notificar al cliente creador.
-      await sendEmail({ to: incident.createdBy.email, ...emailData });
+      await sendEmail({
+        to: incident.createdBy.email,
+        ...emailData,
+        tracking: track,
+      });
     }
   }
 
@@ -130,7 +145,11 @@ export class NotificationService {
       incidentId: incident.id,
     });
 
-    await sendEmail({ to: assignee.email, ...emailData });
+    await sendEmail({
+      to: assignee.email,
+      ...emailData,
+      tracking: { kind: "assigned", incidentId: incident.id },
+    });
   }
 
   static async onStatusChanged(incidentId: string, newStatus: string) {
@@ -150,10 +169,20 @@ export class NotificationService {
       incidentId: incident.id,
     });
 
-    await sendEmail({ to: incident.createdBy.email, ...emailData });
+    const track = { kind: "status.changed" as const, incidentId: incident.id };
+
+    await sendEmail({
+      to: incident.createdBy.email,
+      ...emailData,
+      tracking: track,
+    });
 
     if (incident.assignedTo) {
-      await sendEmail({ to: incident.assignedTo.email, ...emailData });
+      await sendEmail({
+        to: incident.assignedTo.email,
+        ...emailData,
+        tracking: track,
+      });
     }
   }
 }

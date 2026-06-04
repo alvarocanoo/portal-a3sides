@@ -221,6 +221,41 @@ model IncidentCounter {
   @@map("incident_counters")
 }
 
+// ─── Notification Attempts (visibilidad de fallos SMTP) ─
+//
+// Una fila por intento de envío (éxito o fallo). Permite que el ADMIN
+// vea desde el dashboard si una caída de SMTP está silenciando avisos
+// a clientes/agentes. Sin esto, el portal cae en "fallo silencioso":
+// el handler ya devolvió 201 al cliente, console.error es invisible
+// en prod, y nadie se entera hasta que un cliente se queja.
+//
+// kind:       "incident.created" | "message.new" | "status.changed" | "assigned"
+// recipient:  email destino del envío
+// status:     "sent" | "failed"
+// error:      mensaje del error si status="failed", null si "sent"
+// incidentId: ref opcional para enriquecer la vista
+//
+// NO reintentos automáticos en esta iteración — solo visibilidad. Para
+// reenviar, el admin tiene info del kind/recipient/incidentId para
+// actuar manualmente. Una cola con worker (BullMQ) sería el paso
+// siguiente cuando haya Redis disponible.
+model NotificationAttempt {
+  id         String   @id @default(uuid()) @db.Uuid
+  kind       String
+  recipient  String
+  status     String
+  error      String?
+  incidentId String?  @db.Uuid
+  createdAt  DateTime @default(now())
+
+  // Index principal: queries del dashboard filtran por status + ventana
+  // de tiempo (count de "failed en últimas 24h"). Con este compuesto
+  // el escaneo es directo aunque la tabla crezca.
+  @@index([status, createdAt])
+  @@index([incidentId])
+  @@map("notification_attempts")
+}
+
 // ─── Login Attempts (rate limit por email) ──────────────
 //
 // Una fila por intento de login fallido. Usada por el authorize de
